@@ -1,0 +1,864 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build: # make sure build/ci work properly
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v7
+      - run: npm install
+      - run: npm run all
+      - name: Check dist files are up to date
+        run: |
+          if ! git diff --exit-code dist/; then
+            echo "::error::dist/ files are out of date. Run 'npm run package' and commit the changes."
+            exit 1
+          fi
+
+  FreeBSD: # make sure the action works on a clean machine without building
+    name: FreeBSD ${{ matrix.architecture.name }} ${{ matrix.version }} on ${{ matrix.host.name }}
+    runs-on: ${{ matrix.host.name }}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        hostname: [runnervmg1sw1.local]
+        version:
+          - '15.1'
+          - '15.0'
+          - '14.3'
+          - '14.2'
+          - '14.1'
+          - '14.0'
+          - '13.4'
+          - '13.3'
+          - '13.2'
+          - '13.1'
+          - '13.0'
+          - '12.2'
+
+        architecture:
+          - name: arm64
+          - name: x86-64
+            uname: amd64
+
+        host:
+          - name: ubuntu-latest
+            work_directory: /home/runner/work/cross-platform-actions-action/cross-platform-actions-action
+
+        exclude:
+          - version: '12.2'
+            architecture: { name: arm64 }
+
+        include:
+          - version: '12.4'
+            architecture: { name: arm64 }
+            hostname: ''
+            host:
+              name: ubuntu-latest
+              work_directory: /home/runner/work/cross-platform-actions-action/cross-platform-actions-action
+
+          - version: '12.4'
+            architecture:
+              name: x86-64
+              uname: amd64
+            hostname: 'runnervmg1sw1.local'
+            host:
+              name: ubuntu-latest
+              work_directory: /home/runner/work/cross-platform-actions-action/cross-platform-actions-action
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: test
+        uses: ./.github/workflows/support/test
+        with:
+          name: FreeBSD
+          architecture: ${{ matrix.architecture.name }}
+          version: ${{ matrix.version }}
+          hostname: ${{ matrix.hostname }}
+          uname_release: ${{ matrix.version}}-RELEASE
+          uname_hardware: ${{ matrix.architecture.uname || matrix.architecture.name }}
+          work_directory: ${{ matrix.host.work_directory }}
+
+  Haiku:
+    name: Haiku ${{ matrix.architecture.name }} ${{ matrix.version.name }} on ${{ matrix.host.name }}
+    runs-on: ${{ matrix.host.name }}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - name: 'r1beta5'
+            uname: hrev57937
+
+        architecture:
+          - name: x86-64
+            uname: x86_64
+
+        host:
+          - name: ubuntu-latest
+            work_directory: /boot/home/home/runner/work/cross-platform-actions-action/cross-platform-actions-action
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: test
+        uses: ./.github/workflows/support/test
+        with:
+          name: Haiku
+          architecture: ${{ matrix.architecture.name }}
+          version: ${{ matrix.version.name }}
+          hostname: ${{ matrix.hostname }}
+          uname_version: ${{ matrix.version.uname }}
+          uname_hardware: ${{ matrix.architecture.uname || matrix.architecture.name }}
+          work_directory: ${{ matrix.host.work_directory }}
+
+  OpenBSD:
+    name: OpenBSD ${{ matrix.architecture.name }} ${{ matrix.version }} on ${{ matrix.host.name }}
+    runs-on: ${{ matrix.host.name }}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - '7.9'
+          - '7.8'
+          - '7.7'
+          - '7.6'
+          - '7.5'
+          - '7.4'
+          - '7.3'
+          - '7.2'
+          - '7.1'
+          - '6.9'
+          - '6.8'
+
+        architecture:
+          - name: arm64
+          - name: x86-64
+            uname: amd64
+
+        host:
+          - name: ubuntu-latest
+            work_directory: /home/runner/work/cross-platform-actions-action/cross-platform-actions-action
+
+        exclude:
+          - version: '6.8'
+            architecture: { name: arm64 }
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: test
+        uses: ./.github/workflows/support/test
+        with:
+          name: OpenBSD
+          architecture: ${{ matrix.architecture.name }}
+          version: ${{ matrix.version }}
+          hostname: ${{ matrix.hostname }}
+          uname_hardware: ${{ matrix.architecture.uname || matrix.architecture.name }}
+          work_directory: ${{ matrix.host.work_directory }}
+
+  NetBSD:
+    name: NetBSD ${{ matrix.architecture.name }} ${{ matrix.version }} on ${{ matrix.host.name }}
+    runs-on: ${{ matrix.host.name }}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - '10.1'
+          - '10.0'
+          - '9.4'
+          - '9.3'
+          - '9.2'
+
+        architecture:
+          - name: x86-64
+            uname: amd64
+
+          - name: arm64
+            uname: aarch64
+
+        host:
+          - name: ubuntu-latest
+            work_directory: /home/runner/work/cross-platform-actions-action/cross-platform-actions-action
+
+        exclude:
+          - version: '9.4'
+            architecture: { name: arm64 }
+
+          - version: '9.3'
+            architecture: { name: arm64 }
+
+          - version: '9.2'
+            architecture: { name: arm64 }
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: test
+        uses: ./.github/workflows/support/test
+        with:
+          name: NetBSD
+          architecture: ${{ matrix.architecture.name }}
+          version: ${{ matrix.version }}
+          hostname: ${{ matrix.hostname }}
+          uname_hardware: ${{ matrix.architecture.uname || matrix.architecture.name }}
+          work_directory: ${{ matrix.host.work_directory }}
+
+  DragonFlyBSD:
+    name: DragonFlyBSD ${{ matrix.architecture.name }} ${{ matrix.version }} on ${{ matrix.host.name }}
+    runs-on: ${{ matrix.host.name }}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        hostname: [runnervmg1sw1.local]
+        version:
+          - '6.4.2'
+
+        architecture:
+          - name: x86-64
+            uname: x86_64
+
+        host:
+          - name: ubuntu-latest
+            work_directory: /home/runner/work/cross-platform-actions-action/cross-platform-actions-action
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: test
+        uses: ./.github/workflows/support/test
+        with:
+          name: DragonFly
+          operating_system: dragonflybsd
+          architecture: ${{ matrix.architecture.name }}
+          version: ${{ matrix.version }}
+          uname_hardware: ${{ matrix.architecture.uname || matrix.architecture.name }}
+          hostname: ${{ matrix.hostname }}
+          work_directory: ${{ matrix.host.work_directory }}
+
+  MidnightBSD:
+    name: MidnightBSD ${{ matrix.architecture.name }} ${{ matrix.version }} on ${{ matrix.host.name }}
+    runs-on: ${{ matrix.host.name }}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        hostname: [runnervmg1sw1.local]
+        version:
+          - '4.0.4'
+
+        architecture:
+          - name: x86-64
+            uname: amd64
+
+        host:
+          - name: ubuntu-latest
+            work_directory: /home/runner/work/cross-platform-actions-action/cross-platform-actions-action
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: test
+        uses: ./.github/workflows/support/test
+        with:
+          name: MidnightBSD
+          operating_system: midnightbsd
+          architecture: ${{ matrix.architecture.name }}
+          version: ${{ matrix.version }}
+          uname_release: ${{ matrix.version}}-RELEASE
+          uname_hardware: ${{ matrix.architecture.uname || matrix.architecture.name }}
+          hostname: ${{ matrix.hostname }}
+          work_directory: ${{ matrix.host.work_directory }}
+
+  OmniOS:
+    name: OmniOS ${{ matrix.architecture.name }} ${{ matrix.version }} on ${{ matrix.host.name }}
+    runs-on: ${{ matrix.host.name }}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        hostname: [runnervmg1sw1.local]
+        version:
+          - 'r151056'
+
+        architecture:
+          - name: x86-64
+            uname: i86pc
+
+        host:
+          - name: ubuntu-latest
+            work_directory: /home/runner/work/cross-platform-actions-action/cross-platform-actions-action
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: test
+        uses: ./.github/workflows/support/test
+        with:
+          name: OmniOS
+          architecture: ${{ matrix.architecture.name }}
+          version: ${{ matrix.version }}
+          uname_version: ${{ matrix.version }}
+          uname_hardware: ${{ matrix.architecture.uname || matrix.architecture.name }}
+          hostname: ${{ matrix.hostname }}
+          work_directory: ${{ matrix.host.work_directory }}
+
+  test-no-env:
+    timeout-minutes: 5
+    name: Test without environment variables
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Start VM
+        uses: ./
+        with:
+          operating_system: freebsd
+          architecture: x86-64
+          version: '13.0'
+
+      - name: Test
+        shell: cpa.sh {0}
+        run: env | sort
+
+  test-haiku-file-ownership:
+    timeout-minutes: 5
+    name: Test Haiku file ownership after rsync
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - if: env.ACT
+        run: |
+          sudo apt update
+          sudo apt install -y dosfstools rsync fdisk
+
+      - name: Start VM
+        uses: ./
+        with:
+          operating_system: haiku
+          architecture: x86-64
+          version: r1beta5
+
+      - name: Test
+        shell: cpa.sh {0}
+        run: '! find . -nouser | grep -q .'
+
+  test-cpu-count-config:
+    timeout-minutes: 5
+    name: Test configuring CPU count
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Start VM
+        uses: ./
+        with:
+          operating_system: freebsd
+          architecture: x86-64
+          version: '13.1'
+          cpu_count: 8
+
+      - name: Test
+        shell: cpa.sh {0}
+        run: |
+          sysctl hw.ncpu
+          [ `sysctl -n hw.ncpu` = 8 ]
+
+  test-custom-vm-image:
+    timeout-minutes: 5
+    name: Test custom VM image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Start VM
+        uses: ./
+        with:
+          operating_system: openbsd
+          architecture: x86-64
+          version: '7.3'
+          image_url: https://github.com/cross-platform-actions/test-custom-image-builder/releases/download/v1.0.0/openbsd-7.3-x86-64.qcow2
+
+      - name: Test
+        shell: cpa.sh {0}
+        run: test -f /foo
+
+  test-cpu-features:
+    timeout-minutes: 5
+    name: Test CPU features
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Start VM
+        uses: ./
+        with:
+          operating_system: freebsd
+          architecture: x86-64
+          version: '13.2'
+
+      - name: Test
+        shell: cpa.sh {0}
+        run: dmesg | grep -i avx2
+
+  test-shutdown-vm-parameter:
+    timeout-minutes: 5
+    name: 'Test the deprecated shutdown_vm parameter: ${{ matrix.data.value }}'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        data:
+          - value: false
+            verify: ps aux | grep -v grep | grep -q qemu # VM should still be running
+
+          - value: true
+            verify: ps aux | grep -v grep | grep -q -v qemu # VM should not be running
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Start VM
+        uses: ./
+        with:
+          operating_system: freebsd
+          architecture: x86-64
+          version: '13.2'
+          shutdown_vm: ${{ matrix.data.value }}
+
+      - name: Verify VM state
+        run: ${{ matrix.data.verify }}
+
+  test-sync-files:
+    timeout-minutes: 5
+    name: 'Test sync files: ${{ matrix.data.direction }}'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        data:
+          - direction: runner-to-vm
+            run: test -f foo.txt && touch bar.txt
+            run_after: '! test -f bar.txt' # The new files from the VM should not sync back
+
+          - direction: vm-to-runner
+            run: '[ ! -f foo.txt ] && touch bar.txt'
+            run_after: 'test -f bar.txt' # The new files from the VM should sync back
+
+          - direction: false
+            run: '[ ! -f foo.txt ] && touch bar.txt'
+            run_after: '! test -f bar.txt' # The new files from the VM should not sync back
+
+          - direction: true
+            run: test -f foo.txt && touch bar.txt
+            run_after: test -f bar.txt
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - run: touch foo.txt
+
+      - name: Test
+        uses: ./
+        with:
+          operating_system: freebsd
+          architecture: x86-64
+          version: '13.2'
+          sync_files: ${{ matrix.data.direction }}
+          shutdown_vm: false
+          run: ${{ matrix.data.run }}
+
+      - name: Run after
+        run: ${{ matrix.data.run_after }}
+
+  test-run-parameter:
+    timeout-minutes: 5
+    name: Test the deprecated run parameter
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - run: touch foo.txt
+
+      - name: Test
+        uses: ./
+        with:
+          operating_system: freebsd
+          architecture: x86-64
+          version: '13.2'
+          run: |
+            test -f foo.txt
+            touch bar.txt
+            [ "`uname`" = FreeBSD ]
+
+      - name: Verify file synced back
+        run: test -f bar.txt
+
+  multiple-steps:
+    timeout-minutes: 5
+    name: Test running the action multiple times
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Run action first time
+        uses: ./
+        with:
+          operating_system: freebsd
+          architecture: x86-64
+          version: '13.2'
+          shutdown_vm: false
+          run: touch foo.txt
+
+      - name: Verify VM is still running
+        run: ps aux | grep -v grep | grep -q -v qemu
+
+      - name: Verify file is synced back
+        run: test -f foo.txt
+
+      - name: Run action second time
+        uses: ./
+        with:
+          operating_system: freebsd
+          architecture: x86-64
+          version: '13.2'
+          shutdown_vm: true
+          run: test -f foo.txt
+
+  test-custom-shell:
+    timeout-minutes: 5
+    name: Test multiple steps using custom shell
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: cpa.sh {0}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - if: env.ACT
+        shell: bash
+        run: |
+          sudo apt update
+          sudo apt install -y dosfstools rsync fdisk
+
+      - name: Start VM
+        uses: ./
+        with:
+          operating_system: freebsd
+          architecture: x86-64
+          version: '15.0'
+
+      - name: Run command using custom shell
+        run: '[ "`uname`" = FreeBSD ]'
+
+      - name: Run command using custom shell
+        run: '[ "`uname -m`" = amd64 ]'
+
+  test-reboot-shell:
+    timeout-minutes: 10
+    name: Test reboot shell
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - if: env.ACT
+        shell: bash
+        run: |
+          sudo apt update
+          sudo apt install -y dosfstools rsync fdisk
+
+      - name: Start VM
+        uses: ./
+        with:
+          operating_system: freebsd
+          architecture: x86-64
+          version: '15.0'
+
+      - name: Install startup script that creates a marker file on boot
+        shell: cpa.sh {0}
+        run: |
+          echo 'touch /tmp/reboot_marker' | sudo tee /etc/rc.local
+          sudo chmod +x /etc/rc.local
+
+      - name: Verify marker file does not exist yet
+        shell: cpa.sh {0}
+        run: test ! -f /tmp/reboot_marker
+
+      - name: Reboot VM
+        run: cpa.sh --reboot
+
+      - name: Verify VM rebooted by checking the startup script created the marker file
+        shell: cpa.sh {0}
+        run: test -f /tmp/reboot_marker
+
+      # combine custom shell with --reboot flag
+      - name: Install startup script that creates a second marker file on boot
+        shell: cpa.sh {0}
+        run: |
+          echo 'touch /tmp/reboot_marker_2' | sudo tee /etc/rc.local
+          sudo chmod +x /etc/rc.local
+
+      - name: Verify second marker file does not exist yet
+        shell: cpa.sh {0} --reboot
+        run: test ! -f /tmp/reboot_marker_2
+
+      - name: Verify VM rebooted by checking the startup script created the second marker file
+        shell: cpa.sh {0}
+        run: test -f /tmp/reboot_marker_2
+
+  test-reboot-shell-haiku:
+    timeout-minutes: 15
+    name: Test reboot shell on Haiku
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - if: env.ACT
+        shell: bash
+        run: |
+          apt update
+          apt install -y dosfstools rsync fdisk
+
+      - name: Start VM
+        uses: ./
+        with:
+          operating_system: haiku
+          architecture: x86-64
+          version: r1beta5
+
+      - name: Verify VM is running before reboot
+        shell: cpa.sh {0}
+        run: '[ "`uname`" = Haiku ]'
+
+      - name: Reboot VM
+        run: cpa.sh --reboot
+
+      - name: Verify VM is running after reboot
+        shell: cpa.sh {0}
+        run: '[ "`uname`" = Haiku ]'
+
+      # combine custom shell with --reboot flag
+      - name: Reboot via post-flag
+        shell: cpa.sh {0} --reboot
+        run: '[ "`uname`" = Haiku ]'
+
+      - name: Verify VM is running after second reboot
+        shell: cpa.sh {0}
+        run: '[ "`uname`" = Haiku ]'
+
+  test-sync-shell:
+    timeout-minutes: 10
+    name: Test sync shell
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - if: env.ACT
+        shell: bash
+        run: |
+          sudo apt update
+          sudo apt install -y dosfstools rsync fdisk
+
+      - name: Start VM
+        uses: ./
+        with:
+          operating_system: freebsd
+          architecture: x86-64
+          version: '15.0'
+
+      # Test runner-to-vm
+      - name: Create file on runner
+        run: echo 'from runner' > runner_file.txt
+
+      - name: Sync runner-to-vm
+        run: cpa.sh --sync-files runner-to-vm
+
+      - name: Verify file reached VM
+        shell: cpa.sh {0}
+        run: grep -q 'from runner' runner_file.txt
+
+      # Test vm-to-runner
+      - name: Create file in VM
+        shell: cpa.sh {0}
+        run: echo 'from vm' > vm_file.txt
+
+      - name: Sync vm-to-runner
+        run: cpa.sh --sync-files vm-to-runner
+
+      - name: Verify file reached runner
+        run: grep -q 'from vm' vm_file.txt
+
+      # Test both
+      - name: Create new file on runner
+        run: echo 'runner both' > runner_both.txt
+
+      - name: Create new file in VM
+        shell: cpa.sh {0}
+        run: echo 'vm both' > vm_both.txt
+
+      - name: Sync both
+        run: cpa.sh --sync-files both
+
+      - name: Verify VM file reached runner
+        run: grep -q 'vm both' vm_both.txt
+
+      - name: Verify runner file reached VM
+        shell: cpa.sh {0}
+        run: grep -q 'runner both' runner_both.txt
+
+      # Test default (no argument, same as both)
+      - name: Create new file on runner for default test
+        run: echo 'runner default' > runner_default.txt
+
+      - name: Create new file in VM for default test
+        shell: cpa.sh {0}
+        run: echo 'vm default' > vm_default.txt
+
+      - name: Sync default (no argument)
+        run: cpa.sh --sync-files
+
+      - name: Verify VM file reached runner (default)
+        run: grep -q 'vm default' vm_default.txt
+
+      - name: Verify runner file reached VM (default)
+        shell: cpa.sh {0}
+        run: grep -q 'runner default' runner_default.txt
+
+  test-custom-shell-environment-variables:
+    timeout-minutes: 5
+    name: Test environment variables with custom shell
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - if: env.ACT
+        shell: bash
+        run: |
+          sudo apt update
+          sudo apt install -y dosfstools rsync fdisk
+
+      - name: Start VM
+        uses: ./
+        with:
+          operating_system: freebsd
+          architecture: x86-64
+          version: '15.0'
+          environment_variables: FROM_INPUT
+
+      # Variables declared via the action's `environment_variables` input are
+      # forwarded automatically by the custom shell.
+      - name: Forward variable from the environment_variables input
+        shell: cpa.sh {0}
+        env:
+          FROM_INPUT: input_value
+        run: '[ "$FROM_INPUT" = input_value ]'
+
+      # Variables can also be declared per-step via the --environment-variables
+      # flag, without listing them on the Start VM step.
+      - name: Forward variable using the --environment-variables flag
+        shell: cpa.sh {0} --environment-variables FROM_FLAG
+        env:
+          FROM_FLAG: flag_value
+        run: '[ "$FROM_FLAG" = flag_value ]'
+
+      # The input-based and flag-based variables can be combined, and the flag
+      # accepts multiple space-separated names.
+      - name: Forward variables from both the input and the flag
+        shell: cpa.sh {0} --environment-variables FROM_FLAG1 FROM_FLAG2
+        env:
+          FROM_INPUT: input_value
+          FROM_FLAG1: flag_value1
+          FROM_FLAG2: flag_value2
+        run: |
+          [ "$FROM_INPUT" = input_value ]
+          [ "$FROM_FLAG1" = flag_value1 ]
+          [ "$FROM_FLAG2" = flag_value2 ]
