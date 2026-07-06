@@ -1,0 +1,18 @@
+{
+   "schema_version": "1",
+   "onboarding_type": "copied",
+   "archived": false,
+   "maintained_action_name": "step-security/cross-platform-actions-action",
+   "upstream_full_repo_name": "cross-platform-actions/action",
+   "action_type": "node",
+   "last_release": {
+     "tag_name": "v1.3.0",
+     "created_at": "2026-06-25T12:27:02Z",
+     "published_at": "2026-06-25T17:19:27Z"
+   },
+   "sync": {
+     "ignore_presets": [
+       "defaults_v1"
+     ]
+   }
+ }
