@@ -6,10 +6,10 @@ This project provides a GitHub action for running GitHub Actions workflows on
 multiple platforms, including platforms that GitHub Actions doesn't currently natively support.
 
 > [!IMPORTANT]
-> This readme documents the `master` branch, which may describe features and
+> This readme documents the `main` branch, which may describe features and
 > operating system versions that have not been released yet. For the
 > documentation matching the latest release, see the
-> [readme for the latest release](https://github.com/cross-platform-actions/action/blob/v1/readme.md).
+> [readme for the latest release](https://github.com/step-security/cross-platform-actions-action/blob/v1/README.md).
 
 ## `Features`
 
@@ -257,7 +257,7 @@ ones it does, rather than a silent fallback.
 | `microvm` | NetBSD 11 on `x86-64` | Boots the kernel directly on QEMU's `microvm` machine type, which has no boot loader, no PCI bus and no ACPI. |
 
 ```yaml
-- uses: cross-platform-actions/action@v1
+- uses: step-security/cross-platform-actions-action@v1
   with:
     operating_system: netbsd
     version: '11.0'
