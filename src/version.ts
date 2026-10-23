@@ -1,15 +1,16 @@
 const version = {
   operating_system: {
-    dragonflybsd: 'v0.0.1',
-    freebsd: 'v0.15.0',
-    haiku: 'v0.1.0',
+    dragonflybsd: 'v0.0.2',
+    freebsd: 'v0.17.0',
+    haiku: 'v0.2.0',
     midnightbsd: 'v0.0.1',
-    netbsd: 'v0.6.0',
-    openbsd: 'v0.13.0',
+    netbsd: 'v1.1.0',
+    openbsd: 'v0.14.0',
     omnios: 'v0.2.0'
   },
 
-  resources: 'v1.0.0'
+  resources: 'v2.0.0',
+  simh: 'v0.0.1'
 }
 
 export default version

@@ -5,6 +5,12 @@
 This project provides a GitHub action for running GitHub Actions workflows on
 multiple platforms, including platforms that GitHub Actions doesn't currently natively support.
 
+> [!IMPORTANT]
+> This readme documents the `main` branch, which may describe features and
+> operating system versions that have not been released yet. For the
+> documentation matching the latest release, see the
+> [readme for the latest release](https://github.com/step-security/cross-platform-actions-action/blob/v1/README.md).
+
 ## `Features`
 
 Some of the features that this action supports include:
@@ -58,9 +64,9 @@ jobs:
 
 Here's a sample workflow file which will set up a matrix resulting in nine
 jobs. One which will run on FreeBSD 15.1, one which runs OpenBSD 7.9, one which
-runs NetBSD 10.0, one which runs OpenBSD 7.9 on ARM64, one which runs NetBSD
-10.1 on ARM64, one which runs DragonFly BSD 6.4.2, one which runs MidnightBSD
-4.0.4, one which runs Haiku R1/beta5 and one which runs OmniOS r151056.
+runs NetBSD 11.0, one which runs OpenBSD 7.9 on ARM64, one which runs NetBSD
+11.0 on ARM64, one which runs DragonFly BSD 6.4.2, one which runs MidnightBSD
+4.0.4, one which runs Haiku R1/beta6 and one which runs OmniOS r151056.
 
 ```yaml
 name: CI
@@ -90,11 +96,11 @@ jobs:
 
           - name: netbsd
             architecture: x86-64
-            version: '10.1'
+            version: '11.0'
 
           - name: netbsd
             architecture: arm64
-            version: '10.1'
+            version: '11.0'
 
           - name: dragonflybsd
             architecture: x86-64
@@ -106,7 +112,7 @@ jobs:
 
           - name: haiku
             architecture: x86-64
-            version: 'r1beta5'
+            version: 'r1beta6'
 
           - name: omnios
             architecture: x86-64
@@ -224,6 +230,7 @@ This section lists the available inputs for the action.
 | `environment_variables` | ❌       | `""`              | string  | A list of environment variables to forward to the virtual machine. The list should be separated with spaces. The `CI` and any environment variables starting with `GITHUB_` are forwarded automatically.                                                     |
 | `memory`                | ❌       | `6G`              | string  | The amount of memory for the virtual machine.                                                                                                                                                                                                                |
 | `cpu_count`             | ❌       | `2`               | integer | The number of CPU cores for the virtual machine.                                                                                                                                                                                                             |
+| `variant`               | ❌       | `default`         | string  | Which variant of the operating system to run. See [Variants](#variants-variant). Valid values are `default` and, where the platform has it, `microvm`.                                                                                                       |
 | `image_url`             | ❌       | ❌                | string  | URL a custom VM image that should be used in place of the default ones.                                                                                                                                                                                      |
 | `sync_files`            | ❌       | `true`            | string  | Specifies if the local files should be synchronized to the virtual machine and in which direction. Valid values are `true`, `false`, `runner-to-vm` and `vm-to-runner`. `true` synchronizes files in both directions. `false` disables file synchronization. |
 | `shutdown_vm`           | ❌       | conditional       | boolean | **Deprecated.** Specifies if the VM should be shutdown after the action has been run. If unset, defaults to `true` when `run` is provided and `false` otherwise. There is no replacement.                                                                    |
@@ -237,6 +244,38 @@ floating point number, drop the fraction part (because `13` and `13.0` are the
 same) and the GitHub action will only see `13` instead of `13.0`. The solution
 is to explicitly state that a string is required by using quotes: `version:
 '13.0'`.
+
+#### Variants (`variant`)
+
+A variant is a named configuration of a platform, not a set of independent
+options. Asking for a variant a platform doesn't have is an error listing the
+ones it does, rather than a silent fallback.
+
+| Variant   | Available on | Description                                                                     |
+|-----------|--------------|---------------------------------------------------------------------------------|
+| `default` | everything   | The platform as it has always booted: firmware, boot loader, then the kernel.   |
+| `microvm` | NetBSD 11 on `x86-64` | Boots the kernel directly on QEMU's `microvm` machine type, which has no boot loader, no PCI bus and no ACPI. |
+
+```yaml
+- uses: step-security/cross-platform-actions-action@v1
+  with:
+    operating_system: netbsd
+    version: '11.0'
+    variant: microvm
+```
+
+The `microvm` variant reaches a usable guest in roughly half the time, but it
+is opt-in because it changes the hardware the guest sees, and a job that
+inspects hardware will notice:
+
+- the root disk is `ld0` (virtio-blk), not `sd0` (vioscsi)
+- there is no PCI bus and no ACPI, so `pcictl` and anything reading ACPI differ
+- the kernel is `MICROVM` rather than `GENERIC`, which `uname -v` reports
+- bulk transfers into the guest are slower, virtio over MMIO having one
+    interrupt line per device where PCI has a vector per queue
+
+It also needs an image new enough to ship a kernel beside its disk. Asking for
+it with an older image is an error rather than a slow boot.
 
 #### Custom VM Image (`image_url`)
 
@@ -284,33 +323,49 @@ operating system will list which versions are supported.
 
 ### [FreeBSD][freebsd_builder] (`freebsd`)
 
-| Version | x86-64 | arm64  |
-| ------- | ------ | ------ |
-| 15.1    | ✅     | ✅     |
-| 15.0    | ✅     | ✅     |
-| 14.4    | ✅     | ✅     |
-| 14.3    | ✅     | ✅     |
-| 14.2    | ✅     | ✅     |
-| 14.1    | ✅     | ✅     |
-| 14.0    | ✅     | ✅     |
-| 13.5    | ✅     | ✅     |
-| 13.4    | ✅     | ✅     |
-| 13.3    | ✅     | ✅     |
-| 13.2    | ✅     | ✅     |
-| 13.1    | ✅     | ✅     |
-| 13.0    | ✅     | ✅     |
-| 12.4    | ✅     | ✅     |
-| 12.2    | ✅     | ❌     |
+| Version | x86-64 | arm64  | riscv64 |
+| ------- | ------ | ------ | ------- |
+| 15.1    | ✅     | ✅     | ✅      |
+| 15.0    | ✅     | ✅     | ✅      |
+| 14.5    | ✅     | ✅     | ❌      |
+| 14.4    | ✅     | ✅     | ❌      |
+| 14.3    | ✅     | ✅     | ❌      |
+| 14.2    | ✅     | ✅     | ❌      |
+| 14.1    | ✅     | ✅     | ❌      |
+| 14.0    | ✅     | ✅     | ❌      |
+| 13.5    | ✅     | ✅     | ❌      |
+| 13.4    | ✅     | ✅     | ❌      |
+| 13.3    | ✅     | ✅     | ❌      |
+| 13.2    | ✅     | ✅     | ❌      |
+| 13.1    | ✅     | ✅     | ❌      |
+| 13.0    | ✅     | ✅     | ❌      |
+| 12.4    | ✅     | ✅     | ❌      |
+| 12.2    | ✅     | ❌     | ❌      |
 
 ### [NetBSD][netbsd_builder] (`netbsd`)
 
-| Version | x86-64 | arm64 |
-|---------|--------|-------|
-| 10.1    | ✅     | ✅    |
-| 10.0    | ✅     | ✅    |
-| 9.4     | ✅     | ❌    |
-| 9.3     | ✅     | ❌    |
-| 9.2     | ✅     | ❌    |
+| Version | x86-64 | arm64 | vax   |
+|---------|--------|-------|-------|
+| 11.0    | ✅     | ✅    | ✅    |
+| 10.1    | ✅     | ✅    | ✅    |
+| 10.0    | ✅     | ✅    | ❌    |
+| 9.5     | ✅     | ❌    | ❌    |
+| 9.4     | ✅     | ❌    | ❌    |
+| 9.3     | ✅     | ❌    | ❌    |
+| 9.2     | ✅     | ❌    | ❌    |
+
+Note, the VAX architecture runs on the [SIMH][simh_builder] simulator
+(MicroVAX 3900) instead of QEMU and comes with a couple of limitations:
+
+* The MicroVAX 3900 supports at most 512 MB of memory and a single CPU. The
+    `memory` input is rounded down to the largest supported size
+    (16M, 32M, 64M, 128M, 256M or 512M) and the `cpu_count` input is ignored.
+* The emulated VAX is slow; it takes several minutes to boot before the VM
+    becomes reachable.
+* Rebooting the VM (`cpa.sh --reboot`) is not supported: the emulated KA655
+    firmware self-test is unreliable when the machine is restarted inside the
+    same simulator process.
+* The X11 sets are not installed on VAX due to the lack of a display.
 
 ### [DragonFly BSD][dragonflybsd_builder] (`dragonflybsd`)
 
@@ -332,6 +387,7 @@ operating systems.
 
 | Version | x86-64 |
 |---------|--------|
+| r1beta6 | ✅     |
 | r1beta5 | ✅     |
 
 ### [OmniOS][omnios_builder] (`omnios`)
@@ -350,8 +406,9 @@ operating systems, see the sections for each operating system above.
 | Architecture | Aliases         |
 |--------------|-----------------|
 | `arm64`      | `aarch64`       |
+| `vax`        |                 |
 | `x86-64`     | `x86_64`, `x64` |
-|              |                 |
+| `riscv64`    | `riscv`, `rv64` |
 
 ### Hypervisors
 
@@ -361,6 +418,8 @@ which runners they can run on.
 | Hypervisor | Linux Runner | FreeBSD | OpenBSD | Other Platforms |
 |------------|--------------|---------|---------|-----------------|
 | `qemu`     | ✅           | ✅      | ✅      | ✅             |
+
+The VAX architecture always runs on the [SIMH][simh_builder] simulator.
 
 ### Runners
 
@@ -497,6 +556,7 @@ fast as possible. This is achieved in a couple of ways:
 [openbsd_builder]: https://github.com/cross-platform-actions/openbsd-builder
 [freebsd_builder]: https://github.com/cross-platform-actions/freebsd-builder
 [netbsd_builder]: https://github.com/cross-platform-actions/netbsd-builder
+[simh_builder]: https://github.com/cross-platform-actions/simh-builder
 [haiku_builder]: https://github.com/cross-platform-actions/haiku-builder
 [dragonflybsd_builder]: https://github.com/cross-platform-actions/dragonflybsd-builder
 [midnightbsd_builder]: https://github.com/cross-platform-actions/midnightbsd-builder

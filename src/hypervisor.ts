@@ -1,16 +1,17 @@
 import {Architecture} from './architecture'
-import {Vm as QemuVm} from './qemu_vm'
 import {getOrDefaultOrThrow} from './utility'
 
 export enum Kind {
-  qemu
+  qemu,
+  simh
 }
 
 export interface Hypervisor {
   get kind(): Kind
   get sshPort(): number
   get firmwareFile(): string
-  get vmModule(): typeof QemuVm
+  get microvmFirmwareFile(): string
+  get binaryDirectory(): string
   get efi(): Hypervisor
   getResourceUrl(architecture: Architecture): string
   resolve<T>(implementation: Record<string, T>): T
@@ -31,8 +32,16 @@ export class Qemu implements Hypervisor {
     return `${this.firmwareDirectory}/bios-256k.bin`
   }
 
-  get vmModule(): typeof QemuVm {
-    return QemuVm
+  // qboot, the firmware for QEMU's `microvm` machine type: it loads a directly
+  // booted kernel and leaves behind the MP table. SeaBIOS does neither there,
+  // so this is not interchangeable with the firmware above. A hypervisor
+  // archive without the file keeps working, on the other boot path.
+  get microvmFirmwareFile(): string {
+    return `${this.firmwareDirectory}/qboot.rom`
+  }
+
+  get binaryDirectory(): string {
+    return 'bin'
   }
 
   get efi(): Hypervisor {
@@ -51,5 +60,54 @@ export class Qemu implements Hypervisor {
 export class QemuEfi extends Qemu {
   override get firmwareFile(): string {
     return `${this.firmwareDirectory}/uefi.fd`
+  }
+}
+
+// RISC-V boots via QEMU's built-in OpenSBI plus U-Boot, which is loaded as the
+// kernel (see the FreeBSD QemuVmRiscv64). U-Boot then EFI-boots the disk image
+// and forwards the device tree to the FreeBSD loader.
+export class QemuRiscv extends Qemu {
+  override get firmwareFile(): string {
+    return `${this.firmwareDirectory}/u-boot.bin`
+  }
+
+  override get efi(): Hypervisor {
+    return this
+  }
+}
+
+export class Simh implements Hypervisor {
+  get kind(): Kind {
+    return Kind.simh
+  }
+
+  get sshPort(): number {
+    return 2847
+  }
+
+  // SIMH simulators have their firmware built in.
+  get firmwareFile(): string {
+    return ''
+  }
+
+  get microvmFirmwareFile(): string {
+    return ''
+  }
+
+  // The simulator binary is located at the root of the archive.
+  get binaryDirectory(): string {
+    return ''
+  }
+
+  get efi(): Hypervisor {
+    throw Error('SIMH does not support EFI')
+  }
+
+  getResourceUrl(architecture: Architecture): string {
+    return architecture.resourceUrl
+  }
+
+  resolve<T>(implementation: Record<string, T>): T {
+    return getOrDefaultOrThrow(implementation, 'simh')
   }
 }

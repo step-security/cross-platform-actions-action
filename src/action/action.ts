@@ -6,8 +6,10 @@ import * as cache from '@actions/tool-cache'
 import * as core from '@actions/core'
 import * as exec from '@actions/exec'
 
-import * as architecture from '../architecture'
+import {Architecture} from '../architecture'
+import * as architecture_factory from '../architectures/factory'
 import * as hostModule from '../host'
+import {HostCpu} from '../host_cpu'
 import * as os from '../operating_system'
 import * as os_factory from '../operating_systems/factory'
 import ResourceDisk from '../resource_disk'
@@ -18,11 +20,13 @@ import {
 } from '../vm_file_system_synchronizer'
 import * as input from './input'
 import * as shell from './shell'
+import {Timings} from '../timings'
 import * as utility from '../utility'
 
 import {execSync} from 'child_process'
 
 export class Action {
+  readonly timings = new Timings()
   readonly tempPath: string
   readonly host: hostModule.Host
   readonly operatingSystem: os.OperatingSystem
@@ -41,7 +45,7 @@ export class Action {
     this.cpaHost = vmModule.Vm.cpaHost
     this.host = hostModule.Host.create()
     this.tempPath = fs.mkdtempSync('/tmp/resources')
-    const arch = architecture.Architecture.for(
+    const arch = architecture_factory.create(
       this.input.architecture,
       this.host,
       this.input.operatingSystem,
@@ -59,18 +63,34 @@ export class Action {
   async run(): Promise<void> {
     core.startGroup('Setting up VM')
     core.debug('Running action')
+    core.info(`Host CPU: ${new HostCpu()}`)
+    // The phases below are all no-ops when the VM is already running, so
+    // there's nothing worth reporting for those invocations.
+    const isInitialRun = !vmModule.Vm.isRunning
+    // Before anything is downloaded, so an unsupported variant costs a second
+    // rather than the image it would have booted.
+    this.operatingSystem.validateVariant(this.input.variant)
     const runPreparer = this.createRunPreparer()
     runPreparer.createInputHash()
     runPreparer.validateInputHash()
 
     const [diskImagePath, hypervisorArchivePath, resourcesArchivePath] =
-      await Promise.all([...runPreparer.download(), runPreparer.setupSSHKey()])
+      await this.timings.measure('download', async () =>
+        Promise.all([...runPreparer.download(), runPreparer.setupSSHKey()])
+      )
 
-    const [firmwareDirectory, resourcesDirectory] = await Promise.all(
-      runPreparer.unarchive(hypervisorArchivePath, resourcesArchivePath)
+    const [firmwareDirectory, resourcesDirectory] = await this.timings.measure(
+      'unarchive',
+      async () =>
+        Promise.all(
+          runPreparer.unarchive(hypervisorArchivePath, resourcesArchivePath)
+        )
     )
 
-    const hypervisorDirectory = path.join(firmwareDirectory, 'bin')
+    const hypervisorDirectory = path.join(
+      firmwareDirectory,
+      this.operatingSystem.hypervisor.binaryDirectory
+    )
     const excludes = [
       resourcesArchivePath,
       resourcesDirectory,
@@ -79,6 +99,13 @@ export class Action {
       firmwareDirectory,
       diskImagePath
     ].map(p => p.slice(this.homeDirectory.length + 1))
+
+    // Before the VM is created, not after: unpacking the bundle is what puts
+    // the disk and, where there is one, the kernel where the VM expects them,
+    // and a VM that boots a kernel directly is handed one at construction.
+    await this.timings.measure('prepare disk', async () =>
+      runPreparer.prepareDisk(diskImagePath, resourcesDirectory)
+    )
 
     const vm = this.creareVm(
       hypervisorDirectory,
@@ -91,30 +118,36 @@ export class Action {
     )
 
     const implementation = this.getImplementation(vm)
-    await implementation.prepareDisk(diskImagePath, resourcesDirectory)
-
-    await implementation.init()
+    await this.timings.measure('init', async () => implementation.init())
     try {
-      await implementation.run()
+      await this.timings.measure('start hypervisor', async () =>
+        implementation.run()
+      )
       implementation.configSSH(vm.ipAddress)
-      await implementation.wait(240)
-      await implementation.setupWorkDirectory(
-        vm.homeDirectory,
-        vm.workDirectory
+      await this.timings.measure('wait for ssh', async () =>
+        implementation.wait(this.operatingSystem.sshReadyTimeout)
+      )
+      await this.timings.measure('work directory', async () =>
+        implementation.setupWorkDirectory(vm.homeDirectory, vm.workDirectory)
       )
       const syncExcludes = [
         this.targetDiskName,
         this.resourceDisk.diskPath,
         ...excludes
       ]
-      await vm.synchronizePaths(...syncExcludes)
+      await this.timings.measure('synchronize files', async () =>
+        vm.synchronizePaths(...syncExcludes)
+      )
       implementation.setupCustomShell(syncExcludes)
       core.info('VM is ready')
+      if (isInitialRun) this.timings.report('VM setup timings')
       try {
         core.endGroup()
         await this.runCommand(vm)
       } finally {
-        core.startGroup('Tearing down VM')
+        if (this.input.shutdownVm) {
+          core.startGroup('Tearing down VM')
+        }
         await vm.synchronizeBack()
       }
     } finally {
@@ -123,7 +156,9 @@ export class Action {
           await vm.terminate()
         }
       } finally {
-        core.endGroup()
+        if (this.input.shutdownVm) {
+          core.endGroup()
+        }
       }
     }
   }
@@ -134,7 +169,11 @@ export class Action {
         ? this.input.imageURL
         : this.operatingSystem.virtualMachineImageUrl
     core.info(`Downloading disk image: ${imageURL}`)
-    const result = await cache.downloadTool(imageURL)
+    const result = await this.timings.measure(
+      'disk image',
+      async () => cache.downloadTool(imageURL),
+      {nested: true}
+    )
     core.info(`Downloaded file: ${result}`)
 
     return result
@@ -142,7 +181,11 @@ export class Action {
 
   async download(type: string, url: string): Promise<string> {
     core.info(`Downloading ${type}: ${url}`)
-    const result = await cache.downloadTool(url)
+    const result = await this.timings.measure(
+      type,
+      async () => cache.downloadTool(url),
+      {nested: true}
+    )
     core.info(`Downloaded file: ${result}`)
 
     return result
@@ -169,7 +212,11 @@ export class Action {
 
   async unarchive(type: string, archivePath: string): Promise<string> {
     core.info(`Unarchiving ${type}: ${archivePath}`)
-    return cache.extractTar(archivePath, undefined, '-x')
+    return await this.timings.measure(
+      type,
+      async () => cache.extractTar(archivePath, undefined, '-x'),
+      {nested: true}
+    )
   }
 
   async unarchiveHypervisor(archivePath: string): Promise<string> {
@@ -182,7 +229,24 @@ export class Action {
     return env ? `SendEnv ${env}` : ''
   }
 
+  // A platform whose images accept a credential-less login needs no key -- but
+  // only for the images this action publishes. An image supplied through
+  // `image_url` may well have been built from a release that expects the key on
+  // the resources disk, and there is no way to tell from the outside, so it
+  // keeps getting one.
+  get requiresSshKey(): boolean {
+    return this.operatingSystem.requiresSshKey || this.input.imageURL !== ''
+  }
+
   private async setupSSHKey(): Promise<void> {
+    if (!this.requiresSshKey) return
+
+    await this.timings.measure('ssh key', async () => this.createSSHKey(), {
+      nested: true
+    })
+  }
+
+  private async createSSHKey(): Promise<void> {
     const mountPath = this.resourceDisk.create()
     await exec.exec('ssh-keygen', [
       '-t',
@@ -229,9 +293,7 @@ export class Action {
     return homeDirectory
   }
 
-  private createOperatingSystem(
-    arch: architecture.Architecture
-  ): os.OperatingSystem {
+  private createOperatingSystem(arch: Architecture): os.OperatingSystem {
     return os_factory.Factory.for(this.input.operatingSystem, arch).create(
       this.input.version,
       this.input.hypervisor
@@ -276,6 +338,7 @@ interface RunPreparer {
     hypervisorArchivePath: string,
     resourcesArchivePath: string
   ): [Promise<string>, Promise<string>]
+  prepareDisk(diskImagePath: string, resourcesDirectory: string): Promise<void>
 }
 
 // Used when the VM is not running
@@ -319,6 +382,17 @@ class InitialRunPreparer implements RunPreparer {
       this.action.unarchive('resources', resourcesArchivePath)
     ]
   }
+
+  async prepareDisk(
+    diskImagePath: string,
+    resourcesDirectory: string
+  ): Promise<void> {
+    await this.action.operatingSystem.prepareDisk(
+      diskImagePath,
+      this.action['targetDiskName'],
+      resourcesDirectory
+    )
+  }
 }
 
 // Used when the VM is already running
@@ -353,10 +427,16 @@ class LiveRunPreparer implements RunPreparer {
   unarchive(): [Promise<string>, Promise<string>] {
     return [Promise.resolve(''), Promise.resolve('')]
   }
+
+  async prepareDisk(
+    _diskImagePath: string, // eslint-disable-line @typescript-eslint/no-unused-vars
+    _resourcesDirectory: string // eslint-disable-line @typescript-eslint/no-unused-vars
+  ): Promise<void> {
+    // noop
+  }
 }
 
 interface Implementation {
-  prepareDisk(diskImagePath: string, resourcesDirectory: string): Promise<void>
   init(): Promise<void>
   run(): Promise<void>
   wait(timeout: number): Promise<void>
@@ -371,13 +451,6 @@ interface Implementation {
 }
 
 class LiveImplementation implements Implementation {
-  async prepareDisk(
-    _diskImagePath: string, // eslint-disable-line @typescript-eslint/no-unused-vars
-    _resourcesDirectory: string // eslint-disable-line @typescript-eslint/no-unused-vars
-  ): Promise<void> {
-    // noop
-  }
-
   async init(): Promise<void> {
     // noop
   }
@@ -423,17 +496,6 @@ class InitialImplementation implements Implementation {
     this.vm = vm
   }
 
-  async prepareDisk(
-    diskImagePath: string,
-    resourcesDirectory: string
-  ): Promise<void> {
-    await this.action.operatingSystem.prepareDisk(
-      diskImagePath,
-      this.targetDiskName,
-      resourcesDirectory
-    )
-  }
-
   async init(): Promise<void> {
     await this.vm.init()
   }
@@ -453,15 +515,11 @@ class InitialImplementation implements Implementation {
     await this.vm.setupWorkDirectory(homeDirectory, workDirectory)
   }
 
-  private get targetDiskName(): string {
-    return this.action['targetDiskName']
-  }
-
   configSSH(ipAddress: string): void {
     core.debug('Configuring SSH')
 
     this.createSSHConfig()
-    this.setupAuthorizedKeys()
+    if (this.action.requiresSshKey) this.setupAuthorizedKeys()
     this.setupHostname(ipAddress)
   }
 
@@ -477,6 +535,8 @@ class InitialImplementation implements Implementation {
     const sshTarget = `${this.vm.user}@${vmModule.Vm.cpaHost}`
     const workDir = escapeForSh(this.vm.workDirectory)
     const rebootCommand = this.operatingSystem.rebootCommand
+    const consoleLog = vmModule.Vm.logFile
+    const crashPattern = this.operatingSystem.consoleCrashPattern
 
     const synchronizer = new DefaultVmFileSystemSynchronizer({
       input: this.action.input,
@@ -488,6 +548,9 @@ class InitialImplementation implements Implementation {
       synchronizer.synchronizePathsCommand(...syncExcludes)
     )
     const toRunner = commandToShellString(synchronizer.synchronizeBackCommand())
+    const rebootGuard = this.operatingSystem.supportsReboot
+      ? ''
+      : '  echo "Rebooting the VM is not supported for this VM" >&2\n  exit 1\n'
 
     const postSyncToVm = this.vm.postSyncToVmCommand
     const postSyncToVmLine = postSyncToVm
@@ -560,9 +623,25 @@ do_sync() {
   echo "Sync complete."
 }
 
+# Succeeds when the guest has announced a kernel crash on its serial console
+# since the byte offset given as $1. The console log is written by the
+# hypervisor, which runs as root, so reading it requires sudo.
+guest_crashed() {
+  sudo tail -c "+$(($1 + 1))" '${consoleLog}' 2>/dev/null |
+    grep -qE '${crashPattern}'
+}
+
 do_reboot() {
+${rebootGuard}  # Only console output produced from here on describes this reboot. Anything
+  # before it belongs to a boot the VM already recovered from.
+  console_log_offset=$(sudo wc -c '${consoleLog}' 2>/dev/null | awk '{print $1; exit}')
+  : "\${console_log_offset:=0}"
+
   echo "Rebooting VM..."
-  ssh -t ${sshTarget} '${rebootCommand}' || true
+  # Bound the session. A guest that dies while rebooting never closes the
+  # connection, and SSH would then block for the full TCP retransmission time.
+  # ConnectTimeout doesn't help, it only covers establishing the connection.
+  ssh -t -o ServerAliveInterval=5 -o ServerAliveCountMax=3 ${sshTarget} '${rebootCommand}' || true
 
   echo "Waiting for VM to come back up..."
   deadline=$(($(date +%s) + 240))
@@ -572,6 +651,11 @@ do_reboot() {
       consecutive=$((consecutive + 1))
     else
       consecutive=0
+      if guest_crashed "$console_log_offset"; then
+        echo "The guest kernel crashed while rebooting, it will not come back up." >&2
+        echo "The console log of the VM is printed by the post job step." >&2
+        exit 1
+      fi
       if [ "$(date +%s)" -ge "$deadline" ]; then
         echo "Timed out waiting for VM to come back up after 240s" >&2
         exit 1
@@ -722,14 +806,26 @@ fi
     if (!fs.existsSync(this.sshDirectory))
       fs.mkdirSync(this.sshDirectory, {recursive: true, mode: 0o700})
 
+    // The images that don't use a generated key (NetBSD VAX) give the user an
+    // empty password instead, which sshd's keyboard-interactive method accepts
+    // without sending a prompt. That needs no configuration of its own: the
+    // key is simply never offered, since IdentityFile then names a file that
+    // was never generated, and PasswordAuthentication doesn't cover
+    // keyboard-interactive.
     const lines = [
       'StrictHostKeyChecking=accept-new',
       `Host ${this.cpaHost}`,
       `Port ${this.operatingSystem.ssHostPort}`,
       `IdentityFile ${this.privateSshKey}`,
+      'PasswordAuthentication no',
       'SendEnv CI GITHUB_*',
       this.customSendEnv,
-      'PasswordAuthentication no'
+      // Bounds how long a single SSH connection attempt can block. The
+      // remaining budget also covers the exchange of the identification
+      // strings, which is where a connection to a VM that failed to boot
+      // hangs, because QEMU's user mode networking accepts the forwarded
+      // connection before the guest does.
+      'ConnectTimeout 10'
     ].join('\n')
 
     fs.appendFileSync(path.join(this.sshDirectory, 'config'), `${lines}\n`)

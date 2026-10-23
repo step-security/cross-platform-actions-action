@@ -1,6 +1,7 @@
 import * as fs from 'fs'
 import * as architecture from './architecture'
 import {ExecExecutor, Executor, getOrDefaultOrThrow} from './utility'
+import {Clock, SystemClock} from './clock'
 import * as vm from './vm'
 import {Input} from './action/input'
 
@@ -10,19 +11,21 @@ export abstract class Vm extends vm.Vm {
   constructor(
     hypervisorDirectory: fs.PathLike,
     resourcesDirectory: fs.PathLike,
-    architecture: architecture.Architecture,
+    arch: architecture.Architecture,
     input: Input,
     configuration: vm.Configuration,
-    executor: Executor = new ExecExecutor()
+    executor: Executor = new ExecExecutor(),
+    clock: Clock = new SystemClock()
   ) {
     super(
       hypervisorDirectory,
       resourcesDirectory,
       'qemu',
-      architecture,
+      arch,
       input,
       configuration,
-      executor
+      executor,
+      clock
     )
   }
 
@@ -37,23 +40,41 @@ export abstract class Vm extends vm.Vm {
     return [
       this.hypervisorPath.toString(),
       '-daemonize',
-      '-machine', `type=${this.configuration.machineType},accel=${accelerators}`,
+      '-machine', `type=${this.machineType},accel=${accelerators}`,
       '-cpu', this.cpuFlagValue,
       '-smp', this.configuration.cpuCount.toString(),
       '-m', this.configuration.memory,
 
-      '-device', `${this.netDevive},netdev=user.0,addr=0x03`,
-      '-netdev', this.netdev,
+      ...this.networkFlags,
 
       '-display', 'none',
       '-monitor', 'none',
-      '-serial', `file:${this.logFile}`,
+      '-serial', `file:${vm.Vm.logFile}`,
       // '-nographic',
 
       '-boot', 'strict=off',
       ...this.firmwareFlags,
-      ...this.hardDriverFlags
+      ...this.hardDriverFlags,
+      ...this.extraFlags
     ]
+  }
+
+  protected get machineType(): string {
+    return this.configuration.machineType
+  }
+
+  protected get networkFlags(): string[] {
+    // prettier-ignore
+    return [
+      '-device', `${this.netDevive},netdev=user.0,addr=0x03`,
+      '-netdev', this.netdev
+    ]
+  }
+
+  // Flags that don't belong to any of the groups above. Nothing needs them by
+  // default.
+  protected get extraFlags(): string[] {
+    return []
   }
 
   protected abstract get hardDriverFlags(): string[]
@@ -84,18 +105,22 @@ export abstract class Vm extends vm.Vm {
   }
 
   protected get firmwareFlags(): string[] {
-    return ['-bios', this.configuration.firmware!.toString()]
+    if (this.configuration.firmware === undefined) return []
+    return ['-bios', this.configuration.firmware.toString()]
   }
 
   protected get accelerators(): string[] {
     return ['hvf', 'kvm', 'tcg']
   }
 
-  private get netdev(): string {
+  protected get netdev(): string {
     return [
       'user',
       'id=user.0',
-      `hostfwd=tcp::${this.configuration.ssHostPort}-:22`,
+      // Bound to the loopback address. An empty host address would make QEMU
+      // listen on every interface, which exposes the guest's sshd to anything
+      // that can reach the runner. The action connects to localhost.
+      `hostfwd=tcp:127.0.0.1:${this.configuration.ssHostPort}-:22`,
       this.ipv6
     ]
       .filter(e => e !== '')
@@ -103,7 +128,11 @@ export abstract class Vm extends vm.Vm {
   }
 
   private get cpuFlagValue(): string {
-    return [this.configuration.cpu, ...this.cpuidFlags].join(',')
+    return [
+      this.configuration.cpu,
+      ...this.architecture.maskedCpuFeatures,
+      ...this.cpuidFlags
+    ].join(',')
   }
 }
 
