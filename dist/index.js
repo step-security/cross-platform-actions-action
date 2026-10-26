@@ -12372,12 +12372,12 @@ exports["default"] = promisify;
 "use strict";
 
 
-var ArraySpeciesCreate = __nccwpck_require__(1196);
-var FlattenIntoArray = __nccwpck_require__(2459);
-var Get = __nccwpck_require__(381);
-var IsCallable = __nccwpck_require__(5106);
-var ToLength = __nccwpck_require__(537);
-var ToObject = __nccwpck_require__(805);
+var ArraySpeciesCreate = __nccwpck_require__(8248);
+var FlattenIntoArray = __nccwpck_require__(1932);
+var Get = __nccwpck_require__(9617);
+var IsCallable = __nccwpck_require__(2800);
+var ToLength = __nccwpck_require__(2029);
+var ToObject = __nccwpck_require__(4823);
 
 module.exports = function flatMap(mapperFunction) {
 	var O = ToObject(this);
@@ -12449,15 +12449,21 @@ module.exports = function getPolyfill() {
 
 
 var define = __nccwpck_require__(9234);
+var shimUnscopables = __nccwpck_require__(4616);
+
 var getPolyfill = __nccwpck_require__(5705);
 
 module.exports = function shimFlatMap() {
 	var polyfill = getPolyfill();
+
 	define(
 		Array.prototype,
 		{ flatMap: polyfill },
 		{ flatMap: function () { return Array.prototype.flatMap !== polyfill; } }
 	);
+
+	shimUnscopables('flatMap');
+
 	return polyfill;
 };
 
@@ -12923,6 +12929,24 @@ module.exports = $reflectApply || bind.call($call, $apply);
 
 /***/ }),
 
+/***/ 2093:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var bind = __nccwpck_require__(8334);
+var $apply = __nccwpck_require__(4177);
+var actualApply = __nccwpck_require__(9227);
+
+/** @type {import('./applyBind')} */
+module.exports = function applyBind() {
+	return actualApply(bind, $apply, arguments);
+};
+
+
+/***/ }),
+
 /***/ 4177:
 /***/ ((module) => {
 
@@ -12982,73 +13006,27 @@ module.exports = typeof Reflect !== 'undefined' && Reflect && Reflect.apply;
 
 /***/ }),
 
-/***/ 8803:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-var GetIntrinsic = __nccwpck_require__(4538);
-
-var callBind = __nccwpck_require__(2977);
-
-var $indexOf = callBind(GetIntrinsic('String.prototype.indexOf'));
-
-module.exports = function callBoundIntrinsic(name, allowMissing) {
-	var intrinsic = GetIntrinsic(name, !!allowMissing);
-	if (typeof intrinsic === 'function' && $indexOf(name, '.prototype.') > -1) {
-		return callBind(intrinsic);
-	}
-	return intrinsic;
-};
-
-
-/***/ }),
-
 /***/ 2977:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
 
-var bind = __nccwpck_require__(8334);
-var GetIntrinsic = __nccwpck_require__(4538);
+var setFunctionLength = __nccwpck_require__(4056);
 
-var $apply = GetIntrinsic('%Function.prototype.apply%');
-var $call = GetIntrinsic('%Function.prototype.call%');
-var $reflectApply = GetIntrinsic('%Reflect.apply%', true) || bind.call($call, $apply);
+var $defineProperty = __nccwpck_require__(6123);
 
-var $gOPD = GetIntrinsic('%Object.getOwnPropertyDescriptor%', true);
-var $defineProperty = GetIntrinsic('%Object.defineProperty%', true);
-var $max = GetIntrinsic('%Math.max%');
-
-if ($defineProperty) {
-	try {
-		$defineProperty({}, 'a', { value: 1 });
-	} catch (e) {
-		// IE 8 has a broken defineProperty
-		$defineProperty = null;
-	}
-}
+var callBindBasic = __nccwpck_require__(6815);
+var applyBind = __nccwpck_require__(2093);
 
 module.exports = function callBind(originalFunction) {
-	var func = $reflectApply(bind, $call, arguments);
-	if ($gOPD && $defineProperty) {
-		var desc = $gOPD(func, 'length');
-		if (desc.configurable) {
-			// original length, plus the receiver, minus any additional arguments (after the receiver)
-			$defineProperty(
-				func,
-				'length',
-				{ value: 1 + $max(0, originalFunction.length - (arguments.length - 1)) }
-			);
-		}
-	}
-	return func;
-};
-
-var applyBind = function applyBind() {
-	return $reflectApply(bind, $apply, arguments);
+	var func = callBindBasic(arguments);
+	var adjustedLength = 1 + originalFunction.length - (arguments.length - 1);
+	return setFunctionLength(
+		func,
+		adjustedLength > 0 ? adjustedLength : 0,
+		true
+	);
 };
 
 if ($defineProperty) {
@@ -13056,6 +13034,33 @@ if ($defineProperty) {
 } else {
 	module.exports.apply = applyBind;
 }
+
+
+/***/ }),
+
+/***/ 1785:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var GetIntrinsic = __nccwpck_require__(4538);
+
+var callBindBasic = __nccwpck_require__(6815);
+
+/** @type {(thisArg: string, searchString: string, position?: number) => number} */
+var $indexOf = callBindBasic([GetIntrinsic('%String.prototype.indexOf%')]);
+
+/** @type {import('.')} */
+module.exports = function callBoundIntrinsic(name, allowMissing) {
+	/* eslint no-extra-parens: 0 */
+
+	var intrinsic = /** @type {(this: unknown, ...args: unknown[]) => unknown} */ (GetIntrinsic(name, !!allowMissing));
+	if (typeof intrinsic === 'function' && $indexOf(name, '.prototype.') > -1) {
+		return callBindBasic(/** @type {const} */ ([intrinsic]));
+	}
+	return intrinsic;
+};
 
 
 /***/ }),
@@ -13405,14 +13410,17 @@ function useColors() {
 		return false;
 	}
 
+	let m;
+
 	// Is webkit? http://stackoverflow.com/a/16459606/376773
 	// document is undefined in react-native: https://github.com/facebook/react-native/pull/1632
+	// eslint-disable-next-line no-return-assign
 	return (typeof document !== 'undefined' && document.documentElement && document.documentElement.style && document.documentElement.style.WebkitAppearance) ||
 		// Is firebug? http://stackoverflow.com/a/398120/376773
 		(typeof window !== 'undefined' && window.console && (window.console.firebug || (window.console.exception && window.console.table))) ||
 		// Is firefox >= v31?
 		// https://developer.mozilla.org/en-US/docs/Tools/Web_Console#Styling_messages
-		(typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().match(/firefox\/(\d+)/) && parseInt(RegExp.$1, 10) >= 31) ||
+		(typeof navigator !== 'undefined' && navigator.userAgent && (m = navigator.userAgent.toLowerCase().match(/firefox\/(\d+)/)) && parseInt(m[1], 10) >= 31) ||
 		// Double check webkit in userAgent just in case we are in a worker
 		(typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().match(/applewebkit\/(\d+)/));
 }
@@ -13496,7 +13504,7 @@ function save(namespaces) {
 function load() {
 	let r;
 	try {
-		r = exports.storage.getItem('debug');
+		r = exports.storage.getItem('debug') || exports.storage.getItem('DEBUG') ;
 	} catch (error) {
 		// Swallow
 		// XXX (@Qix-) should we be logging these?
@@ -13590,7 +13598,7 @@ function setup(env) {
 
 	/**
 	* Selects a color for a debug namespace
-	* @param {String} namespace The namespace string for the for the debug instance to be colored
+	* @param {String} namespace The namespace string for the debug instance to be colored
 	* @return {Number|String} An ANSI color code for the given namespace
 	* @api private
 	*/
@@ -13722,24 +13730,62 @@ function setup(env) {
 		createDebug.names = [];
 		createDebug.skips = [];
 
-		let i;
-		const split = (typeof namespaces === 'string' ? namespaces : '').split(/[\s,]+/);
-		const len = split.length;
+		const split = (typeof namespaces === 'string' ? namespaces : '')
+			.trim()
+			.replace(/\s+/g, ',')
+			.split(',')
+			.filter(Boolean);
 
-		for (i = 0; i < len; i++) {
-			if (!split[i]) {
-				// ignore empty strings
-				continue;
-			}
-
-			namespaces = split[i].replace(/\*/g, '.*?');
-
-			if (namespaces[0] === '-') {
-				createDebug.skips.push(new RegExp('^' + namespaces.substr(1) + '$'));
+		for (const ns of split) {
+			if (ns[0] === '-') {
+				createDebug.skips.push(ns.slice(1));
 			} else {
-				createDebug.names.push(new RegExp('^' + namespaces + '$'));
+				createDebug.names.push(ns);
 			}
 		}
+	}
+
+	/**
+	 * Checks if the given string matches a namespace template, honoring
+	 * asterisks as wildcards.
+	 *
+	 * @param {String} search
+	 * @param {String} template
+	 * @return {Boolean}
+	 */
+	function matchesTemplate(search, template) {
+		let searchIndex = 0;
+		let templateIndex = 0;
+		let starIndex = -1;
+		let matchIndex = 0;
+
+		while (searchIndex < search.length) {
+			if (templateIndex < template.length && (template[templateIndex] === search[searchIndex] || template[templateIndex] === '*')) {
+				// Match character or proceed with wildcard
+				if (template[templateIndex] === '*') {
+					starIndex = templateIndex;
+					matchIndex = searchIndex;
+					templateIndex++; // Skip the '*'
+				} else {
+					searchIndex++;
+					templateIndex++;
+				}
+			} else if (starIndex !== -1) { // eslint-disable-line no-negated-condition
+				// Backtrack to the last '*' and try to match more characters
+				templateIndex = starIndex + 1;
+				matchIndex++;
+				searchIndex = matchIndex;
+			} else {
+				return false; // No match
+			}
+		}
+
+		// Handle trailing '*' in template
+		while (templateIndex < template.length && template[templateIndex] === '*') {
+			templateIndex++;
+		}
+
+		return templateIndex === template.length;
 	}
 
 	/**
@@ -13750,8 +13796,8 @@ function setup(env) {
 	*/
 	function disable() {
 		const namespaces = [
-			...createDebug.names.map(toNamespace),
-			...createDebug.skips.map(toNamespace).map(namespace => '-' + namespace)
+			...createDebug.names,
+			...createDebug.skips.map(namespace => '-' + namespace)
 		].join(',');
 		createDebug.enable('');
 		return namespaces;
@@ -13765,39 +13811,19 @@ function setup(env) {
 	* @api public
 	*/
 	function enabled(name) {
-		if (name[name.length - 1] === '*') {
-			return true;
-		}
-
-		let i;
-		let len;
-
-		for (i = 0, len = createDebug.skips.length; i < len; i++) {
-			if (createDebug.skips[i].test(name)) {
+		for (const skip of createDebug.skips) {
+			if (matchesTemplate(name, skip)) {
 				return false;
 			}
 		}
 
-		for (i = 0, len = createDebug.names.length; i < len; i++) {
-			if (createDebug.names[i].test(name)) {
+		for (const ns of createDebug.names) {
+			if (matchesTemplate(name, ns)) {
 				return true;
 			}
 		}
 
 		return false;
-	}
-
-	/**
-	* Convert regexp to namespace
-	*
-	* @param {RegExp} regxep
-	* @return {String} namespace
-	* @api private
-	*/
-	function toNamespace(regexp) {
-		return regexp.toString()
-			.substring(2, regexp.toString().length - 2)
-			.replace(/\.\*\?$/, '*');
 	}
 
 	/**
@@ -14041,11 +14067,11 @@ function getDate() {
 }
 
 /**
- * Invokes `util.format()` with the specified arguments and writes to stderr.
+ * Invokes `util.formatWithOptions()` with the specified arguments and writes to stderr.
  */
 
 function log(...args) {
-	return process.stderr.write(util.format(...args) + '\n');
+	return process.stderr.write(util.formatWithOptions(exports.inspectOpts, ...args) + '\n');
 }
 
 /**
@@ -14119,6 +14145,70 @@ formatters.O = function (v) {
 
 /***/ }),
 
+/***/ 4564:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var $defineProperty = __nccwpck_require__(6123);
+
+var $SyntaxError = __nccwpck_require__(5474);
+var $TypeError = __nccwpck_require__(6361);
+
+var gopd = __nccwpck_require__(8501);
+
+/** @type {import('.')} */
+module.exports = function defineDataProperty(
+	obj,
+	property,
+	value
+) {
+	if (!obj || (typeof obj !== 'object' && typeof obj !== 'function')) {
+		throw new $TypeError('`obj` must be an object or a function`');
+	}
+	if (typeof property !== 'string' && typeof property !== 'symbol') {
+		throw new $TypeError('`property` must be a string or a symbol`');
+	}
+	if (arguments.length > 3 && typeof arguments[3] !== 'boolean' && arguments[3] !== null) {
+		throw new $TypeError('`nonEnumerable`, if provided, must be a boolean or null');
+	}
+	if (arguments.length > 4 && typeof arguments[4] !== 'boolean' && arguments[4] !== null) {
+		throw new $TypeError('`nonWritable`, if provided, must be a boolean or null');
+	}
+	if (arguments.length > 5 && typeof arguments[5] !== 'boolean' && arguments[5] !== null) {
+		throw new $TypeError('`nonConfigurable`, if provided, must be a boolean or null');
+	}
+	if (arguments.length > 6 && typeof arguments[6] !== 'boolean') {
+		throw new $TypeError('`loose`, if provided, must be a boolean');
+	}
+
+	var nonEnumerable = arguments.length > 3 ? arguments[3] : null;
+	var nonWritable = arguments.length > 4 ? arguments[4] : null;
+	var nonConfigurable = arguments.length > 5 ? arguments[5] : null;
+	var loose = arguments.length > 6 ? arguments[6] : false;
+
+	/* @type {false | TypedPropertyDescriptor<unknown>} */
+	var desc = !!gopd && gopd(obj, property);
+
+	if ($defineProperty) {
+		$defineProperty(obj, property, {
+			configurable: nonConfigurable === null && desc ? desc.configurable : !nonConfigurable,
+			enumerable: nonEnumerable === null && desc ? desc.enumerable : !nonEnumerable,
+			value: value,
+			writable: nonWritable === null && desc ? desc.writable : !nonWritable
+		});
+	} else if (loose || (!nonEnumerable && !nonWritable && !nonConfigurable)) {
+		// must fall back to [[Set]], and was not explicitly asked to make non-enumerable, non-writable, or non-configurable
+		obj[property] = value; // eslint-disable-line no-param-reassign
+	} else {
+		throw new $SyntaxError('This environment does not support defining a property as non-configurable, non-writable, or non-enumerable.');
+	}
+};
+
+
+/***/ }),
+
 /***/ 9234:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
@@ -14130,29 +14220,29 @@ var hasSymbols = typeof Symbol === 'function' && typeof Symbol('foo') === 'symbo
 
 var toStr = Object.prototype.toString;
 var concat = Array.prototype.concat;
-var origDefineProperty = Object.defineProperty;
+var defineDataProperty = __nccwpck_require__(4564);
 
 var isFunction = function (fn) {
 	return typeof fn === 'function' && toStr.call(fn) === '[object Function]';
 };
 
-var hasPropertyDescriptors = __nccwpck_require__(176)();
-
-var supportsDescriptors = origDefineProperty && hasPropertyDescriptors;
+var supportsDescriptors = __nccwpck_require__(176)();
 
 var defineProperty = function (object, name, value, predicate) {
-	if (name in object && (!isFunction(predicate) || !predicate())) {
-		return;
+	if (name in object) {
+		if (predicate === true) {
+			if (object[name] === value) {
+				return;
+			}
+		} else if (!isFunction(predicate) || !predicate()) {
+			return;
+		}
 	}
+
 	if (supportsDescriptors) {
-		origDefineProperty(object, name, {
-			configurable: true,
-			enumerable: false,
-			value: value,
-			writable: true
-		});
+		defineDataProperty(object, name, value, true);
 	} else {
-		object[name] = value; // eslint-disable-line no-param-reassign
+		defineDataProperty(object, name, value);
 	}
 };
 
@@ -14326,6 +14416,138 @@ module.exports = desc && typeof desc.get === 'function'
 
 /***/ }),
 
+/***/ 7874:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var callBind = __nccwpck_require__(6815);
+var gOPD = __nccwpck_require__(8501);
+var $TypeError = __nccwpck_require__(6361);
+
+/** @type {{ __proto__?: object | null }} */
+var obj = {};
+try {
+	obj.__proto__ = null; // eslint-disable-line no-proto
+} catch (e) {
+	if (!e || typeof e !== 'object' || !('code' in e) || e.code !== 'ERR_PROTO_ACCESS') {
+		throw e;
+	}
+}
+
+var hasProtoMutator = !('toString' in obj);
+
+// eslint-disable-next-line no-extra-parens
+var desc = gOPD && gOPD(Object.prototype, /** @type {keyof typeof Object.prototype} */ ('__proto__'));
+
+/** @type {import('./set')} */
+module.exports = hasProtoMutator && (
+// eslint-disable-next-line no-extra-parens
+	(!!desc && typeof desc.set === 'function' && /** @type {import('./set')} */ (callBind([desc.set])))
+	|| /** @type {import('./set')} */ function setDunder(object, proto) {
+		// this is node v0.10 or older, which doesn't have Object.setPrototypeOf and has undeniable __proto__
+		if (object == null) { // eslint-disable-line eqeqeq
+			throw new $TypeError('set Object.prototype.__proto__ called on null or undefined');
+		}
+		// eslint-disable-next-line no-proto, no-param-reassign, no-extra-parens
+		/** @type {{ __proto__?: object | null }} */ (object).__proto__ = proto;
+		return proto;
+	}
+);
+
+
+/***/ }),
+
+/***/ 1020:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var $TypeError = __nccwpck_require__(6361);
+
+var isCallable = __nccwpck_require__(4615);
+
+var inspect = __nccwpck_require__(504);
+
+var GetV = __nccwpck_require__(6432);
+var isPropertyKey = __nccwpck_require__(9149);
+
+// https://262.ecma-international.org/6.0/#sec-getmethod
+
+/** @type {import('./GetMethod')} */
+module.exports = function GetMethod(O, P) {
+	// 7.3.9.1
+	if (!isPropertyKey(P)) {
+		throw new $TypeError('Assertion failed: P is not a Property Key');
+	}
+
+	// 7.3.9.2
+	var func = GetV(O, P);
+
+	// 7.3.9.4
+	if (func == null) {
+		return void 0;
+	}
+
+	// 7.3.9.5
+	if (!isCallable(func)) {
+		throw new $TypeError(inspect(P) + ' is not a function: ' + inspect(func));
+	}
+
+	// 7.3.9.6
+	return func;
+};
+
+
+/***/ }),
+
+/***/ 6432:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var $TypeError = __nccwpck_require__(6361);
+
+var inspect = __nccwpck_require__(504);
+
+var isPropertyKey = __nccwpck_require__(9149);
+
+// https://262.ecma-international.org/6.0/#sec-getv
+
+/** @type {import('./GetV')} */
+module.exports = function GetV(V, P) {
+	// 7.3.2.1
+	if (!isPropertyKey(P)) {
+		throw new $TypeError('Assertion failed: P is not a Property Key, got ' + inspect(P));
+	}
+
+	// 7.3.2.2-3
+	// var O = ToObject(V);
+
+	// 7.3.2.4
+	return /** @type {Record<typeof P, unknown>} */ (V)[P]; // O.[[Get]](P, V)
+};
+
+
+/***/ }),
+
+/***/ 9149:
+/***/ ((module) => {
+
+"use strict";
+
+
+/** @type {import('./isPropertyKey')} */
+module.exports = function isPropertyKey(argument) {
+	return typeof argument === 'string' || typeof argument === 'symbol';
+};
+
+
+/***/ }),
+
 /***/ 6123:
 /***/ ((module) => {
 
@@ -14432,6 +14654,43 @@ module.exports = URIError;
 
 /***/ }),
 
+/***/ 2177:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var $TypeError = __nccwpck_require__(6361);
+
+/** @type {import('./RequireObjectCoercible')} */
+module.exports = function RequireObjectCoercible(value) {
+	if (value == null) {
+		throw new $TypeError((arguments.length > 0 && arguments[1]) || ('Cannot call method on ' + value));
+	}
+	return value;
+};
+
+
+/***/ }),
+
+/***/ 5127:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var $Object = __nccwpck_require__(8308);
+var RequireObjectCoercible = __nccwpck_require__(2177);
+
+/** @type {import('./ToObject')} */
+module.exports = function ToObject(value) {
+	RequireObjectCoercible(value);
+	return $Object(value);
+};
+
+
+/***/ }),
+
 /***/ 8308:
 /***/ ((module) => {
 
@@ -14440,6 +14699,20 @@ module.exports = URIError;
 
 /** @type {import('.')} */
 module.exports = Object;
+
+
+/***/ }),
+
+/***/ 9525:
+/***/ ((module) => {
+
+"use strict";
+
+
+/** @type {import('./isObject')} */
+module.exports = function isObject(x) {
+	return !!x && (typeof x === 'function' || typeof x === 'object');
+};
 
 
 /***/ }),
@@ -14487,6 +14760,36 @@ module.exports = function setToStringTag(object, value) {
 
 /***/ }),
 
+/***/ 4616:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var hasOwn = __nccwpck_require__(2157);
+
+var hasUnscopables = typeof Symbol === 'function' && typeof Symbol.unscopables === 'symbol';
+
+var map = hasUnscopables && Array.prototype[Symbol.unscopables];
+
+var $TypeError = TypeError;
+
+/** @type {import('.')} */
+module.exports = function shimUnscopables(method) {
+	if (typeof method !== 'string' || !method) {
+		throw new $TypeError('method must be a non-empty string');
+	}
+	if (!hasOwn(Array.prototype, method)) {
+		throw new $TypeError('method must be on Array.prototype');
+	}
+	if (hasUnscopables && map) {
+		map[method] = true;
+	}
+};
+
+
+/***/ }),
+
 /***/ 9464:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
@@ -14495,18 +14798,24 @@ module.exports = function setToStringTag(object, value) {
 
 var hasSymbols = typeof Symbol === 'function' && typeof Symbol.iterator === 'symbol';
 
-var isPrimitive = __nccwpck_require__(1367);
 var isCallable = __nccwpck_require__(4615);
 var isDate = __nccwpck_require__(9711);
 var isSymbol = __nccwpck_require__(6510);
+var $TypeError = __nccwpck_require__(6361);
 
-var ordinaryToPrimitive = function OrdinaryToPrimitive(O, hint) {
+var isPrimitive = __nccwpck_require__(1367);
+
+/** @import { primitiveES6 } from './es2015' */
+
+/** @type {(O: { valueOf?: () => unknown, toString?: () => unknown }, hint: 'number' | 'string') => primitiveES6} */
+function OrdinaryToPrimitive(O, hint) {
 	if (typeof O === 'undefined' || O === null) {
-		throw new TypeError('Cannot call method on ' + O);
+		throw new $TypeError('Cannot call method on ' + O);
 	}
 	if (typeof hint !== 'string' || (hint !== 'number' && hint !== 'string')) {
-		throw new TypeError('hint must be "string" or "number"');
+		throw new $TypeError('hint must be "string" or "number"');
 	}
+	/** @type {('toString' | 'valueOf')[]} */
 	var methodNames = hint === 'string' ? ['toString', 'valueOf'] : ['valueOf', 'toString'];
 	var method, result, i;
 	for (i = 0; i < methodNames.length; ++i) {
@@ -14514,29 +14823,22 @@ var ordinaryToPrimitive = function OrdinaryToPrimitive(O, hint) {
 		if (isCallable(method)) {
 			result = method.call(O);
 			if (isPrimitive(result)) {
-				return result;
+				return /** @type {primitiveES6} */ (result);
 			}
 		}
 	}
-	throw new TypeError('No default value');
-};
+	throw new $TypeError('No default value');
+}
 
-var GetMethod = function GetMethod(O, P) {
-	var func = O[P];
-	if (func !== null && typeof func !== 'undefined') {
-		if (!isCallable(func)) {
-			throw new TypeError(func + ' returned for property ' + P + ' of object ' + O + ' is not a function');
-		}
-		return func;
-	}
-	return void 0;
-};
+var GetMethod = __nccwpck_require__(1020);
 
+/** @type {import('./es2015')} */
 // http://www.ecma-international.org/ecma-262/6.0/#sec-toprimitive
 module.exports = function ToPrimitive(input) {
 	if (isPrimitive(input)) {
-		return input;
+		return /** @type {primitiveES6} */ (input);
 	}
+	/** @type {'default' | 'string' | 'number'} */
 	var hint = 'default';
 	if (arguments.length > 1) {
 		if (arguments[1] === String) {
@@ -14549,7 +14851,12 @@ module.exports = function ToPrimitive(input) {
 	var exoticToPrim;
 	if (hasSymbols) {
 		if (Symbol.toPrimitive) {
-			exoticToPrim = GetMethod(input, Symbol.toPrimitive);
+
+			exoticToPrim = GetMethod(
+				/** @type {{ [k in SymbolConstructor['toPrimitive']]?: Function }} */
+				(input),
+				Symbol.toPrimitive
+			);
 		} else if (isSymbol(input)) {
 			exoticToPrim = Symbol.prototype.valueOf;
 		}
@@ -14557,67 +14864,15 @@ module.exports = function ToPrimitive(input) {
 	if (typeof exoticToPrim !== 'undefined') {
 		var result = exoticToPrim.call(input, hint);
 		if (isPrimitive(result)) {
-			return result;
+			return /** @type {primitiveES6} */ (result);
 		}
-		throw new TypeError('unable to convert exotic object to primitive');
+		throw new $TypeError('unable to convert exotic object to primitive');
 	}
 	if (hint === 'default' && (isDate(input) || isSymbol(input))) {
-		hint = 'string';
+		hint = /** @type {const} */ ('string');
 	}
-	return ordinaryToPrimitive(input, hint === 'default' ? 'number' : hint);
-};
 
-
-/***/ }),
-
-/***/ 3884:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-var toStr = Object.prototype.toString;
-
-var isPrimitive = __nccwpck_require__(1367);
-
-var isCallable = __nccwpck_require__(4615);
-
-// http://ecma-international.org/ecma-262/5.1/#sec-8.12.8
-var ES5internalSlots = {
-	'[[DefaultValue]]': function (O) {
-		var actualHint;
-		if (arguments.length > 1) {
-			actualHint = arguments[1];
-		} else {
-			actualHint = toStr.call(O) === '[object Date]' ? String : Number;
-		}
-
-		if (actualHint === String || actualHint === Number) {
-			var methods = actualHint === String ? ['toString', 'valueOf'] : ['valueOf', 'toString'];
-			var value, i;
-			for (i = 0; i < methods.length; ++i) {
-				if (isCallable(O[methods[i]])) {
-					value = O[methods[i]]();
-					if (isPrimitive(value)) {
-						return value;
-					}
-				}
-			}
-			throw new TypeError('No default value');
-		}
-		throw new TypeError('invalid [[DefaultValue]] hint supplied');
-	}
-};
-
-// http://ecma-international.org/ecma-262/5.1/#sec-9.1
-module.exports = function ToPrimitive(input) {
-	if (isPrimitive(input)) {
-		return input;
-	}
-	if (arguments.length > 1) {
-		return ES5internalSlots['[[DefaultValue]]'](input, arguments[1]);
-	}
-	return ES5internalSlots['[[DefaultValue]]'](input);
+	return OrdinaryToPrimitive(input, hint === 'default' ? 'number' : hint);
 };
 
 
@@ -14629,6 +14884,10 @@ module.exports = function ToPrimitive(input) {
 "use strict";
 
 
+/** @import { primitive } from '../' */
+/** @import { primitiveES5 } from '../es5' */
+
+/** @type {<T extends primitive | primitiveES5>(value: unknown) => value is T} */
 module.exports = function isPrimitive(value) {
 	return value === null || (typeof value !== 'function' && typeof value !== 'object');
 };
@@ -14965,6 +15224,15 @@ RedirectableRequest.prototype._sanitizeOptions = function (options) {
   if (!options.headers) {
     options.headers = {};
   }
+  // Convert [header1, value1, header2, value2, …] to object
+  else if (Array.isArray(options.headers)) {
+    var headerList = options.headers;
+    options.headers = {};
+    for (var i = 0; i < headerList.length; i += 2) {
+      options.headers[headerList[i]] = headerList[i + 1];
+    }
+  }
+  // Ensure sensitive headers are always present
   if (!isArray(options.sensitiveHeaders)) {
     options.sensitiveHeaders = [];
   }
@@ -15364,7 +15632,7 @@ function isURL(value) {
 }
 
 function escapeRegex(regex) {
-  return regex.replace(/[\]\\/()*+?.$]/g, "\\$&");
+  return regex.replace(/[[\]\\/()*+?.^$|]/g, "\\$&");
 }
 
 // Exports
@@ -16499,26 +16767,15 @@ module.exports = $gOPD;
 "use strict";
 
 
-var GetIntrinsic = __nccwpck_require__(4538);
-
-var $defineProperty = GetIntrinsic('%Object.defineProperty%', true);
+var $defineProperty = __nccwpck_require__(6123);
 
 var hasPropertyDescriptors = function hasPropertyDescriptors() {
-	if ($defineProperty) {
-		try {
-			$defineProperty({}, 'a', { value: 1 });
-			return true;
-		} catch (e) {
-			// IE 8 has a broken defineProperty
-			return false;
-		}
-	}
-	return false;
+	return !!$defineProperty;
 };
 
 hasPropertyDescriptors.hasArrayLengthDefineBug = function hasArrayLengthDefineBug() {
 	// node v0.6 has a bug where array lengths can be Set but not Defined
-	if (!hasPropertyDescriptors()) {
+	if (!$defineProperty) {
 		return null;
 	}
 	try {
@@ -16621,19 +16878,6 @@ var hasSymbols = __nccwpck_require__(7747);
 module.exports = function hasToStringTagShams() {
 	return hasSymbols() && !!Symbol.toStringTag;
 };
-
-
-/***/ }),
-
-/***/ 6339:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-var bind = __nccwpck_require__(8334);
-
-module.exports = bind.call(Function.call, Object.prototype.hasOwnProperty);
 
 
 /***/ }),
@@ -16981,62 +17225,96 @@ var tryFunctionObject = function tryFunctionToStr(value) {
 	}
 };
 var toStr = Object.prototype.toString;
+var objectClass = '[object Object]';
 var fnClass = '[object Function]';
 var genClass = '[object GeneratorFunction]';
+var ddaClass = '[object HTMLAllCollection]'; // IE 11
+var ddaClass2 = '[object HTML document.all class]';
+var ddaClass3 = '[object HTMLCollection]'; // IE 9-10
 var hasToStringTag = typeof Symbol === 'function' && !!Symbol.toStringTag; // better: use `has-tostringtag`
-/* globals document: false */
-var documentDotAll = typeof document === 'object' && typeof document.all === 'undefined' && document.all !== undefined ? document.all : {};
+
+var isIE68 = !(0 in [,]); // eslint-disable-line no-sparse-arrays, comma-spacing
+
+var isDDA = function isDocumentDotAll() { return false; };
+if (typeof document === 'object') {
+	// Firefox 3 canonicalizes DDA to undefined when it's not accessed directly
+	var all = document.all;
+	if (toStr.call(all) === toStr.call(document.all)) {
+		isDDA = function isDocumentDotAll(value) {
+			/* globals document: false */
+			// in IE 6-8, typeof document.all is "object" and it's truthy
+			if ((isIE68 || !value) && (typeof value === 'undefined' || typeof value === 'object')) {
+				try {
+					var str = toStr.call(value);
+					return (
+						str === ddaClass
+						|| str === ddaClass2
+						|| str === ddaClass3 // opera 12.16
+						|| str === objectClass // IE 6-8
+					) && value('') == null; // eslint-disable-line eqeqeq
+				} catch (e) { /**/ }
+			}
+			return false;
+		};
+	}
+}
 
 module.exports = reflectApply
 	? function isCallable(value) {
-		if (value === documentDotAll) { return true; }
+		if (isDDA(value)) { return true; }
 		if (!value) { return false; }
 		if (typeof value !== 'function' && typeof value !== 'object') { return false; }
-		if (typeof value === 'function' && !value.prototype) { return true; }
 		try {
 			reflectApply(value, null, badArrayLike);
 		} catch (e) {
 			if (e !== isCallableMarker) { return false; }
 		}
-		return !isES6ClassFn(value);
+		return !isES6ClassFn(value) && tryFunctionObject(value);
 	}
 	: function isCallable(value) {
-		if (value === documentDotAll) { return true; }
+		if (isDDA(value)) { return true; }
 		if (!value) { return false; }
 		if (typeof value !== 'function' && typeof value !== 'object') { return false; }
-		if (typeof value === 'function' && !value.prototype) { return true; }
 		if (hasToStringTag) { return tryFunctionObject(value); }
 		if (isES6ClassFn(value)) { return false; }
 		var strClass = toStr.call(value);
-		return strClass === fnClass || strClass === genClass;
+		if (strClass !== fnClass && strClass !== genClass && !(/^\[object HTML/).test(strClass)) { return false; }
+		return tryFunctionObject(value);
 	};
 
 
 /***/ }),
 
 /***/ 9711:
-/***/ ((module) => {
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
 
-var getDay = Date.prototype.getDay;
-var tryDateObject = function tryDateObject(value) {
+var callBound = __nccwpck_require__(1785);
+
+var getDay = callBound('Date.prototype.getDay');
+/** @type {import('.')} */
+var tryDateObject = function tryDateGetDayCall(value) {
 	try {
-		getDay.call(value);
+		getDay(value);
 		return true;
 	} catch (e) {
 		return false;
 	}
 };
 
-var toStr = Object.prototype.toString;
+/** @type {(value: unknown) => string} */
+var toStr = callBound('Object.prototype.toString');
 var dateClass = '[object Date]';
-var hasToStringTag = typeof Symbol === 'function' && typeof Symbol.toStringTag === 'symbol';
+var hasToStringTag = __nccwpck_require__(9038)();
 
+/** @type {import('.')} */
 module.exports = function isDateObject(value) {
-	if (typeof value !== 'object' || value === null) { return false; }
-	return hasToStringTag ? tryDateObject(value) : toStr.call(value) === dateClass;
+	if (typeof value !== 'object' || value === null) {
+		return false;
+	}
+	return hasToStringTag ? tryDateObject(value) : toStr(value) === dateClass;
 };
 
 
@@ -17048,22 +17326,25 @@ module.exports = function isDateObject(value) {
 "use strict";
 
 
-var callBound = __nccwpck_require__(8803);
+var callBound = __nccwpck_require__(1785);
 var hasToStringTag = __nccwpck_require__(9038)();
-var has;
-var $exec;
-var isRegexMarker;
-var badStringifier;
+var hasOwn = __nccwpck_require__(2157);
+var gOPD = __nccwpck_require__(8501);
+
+/** @type {import('.')} */
+var fn;
 
 if (hasToStringTag) {
-	has = callBound('Object.prototype.hasOwnProperty');
-	$exec = callBound('RegExp.prototype.exec');
-	isRegexMarker = {};
+	/** @type {(receiver: ThisParameterType<typeof RegExp.prototype.exec>, ...args: Parameters<typeof RegExp.prototype.exec>) => ReturnType<typeof RegExp.prototype.exec>} */
+	var $exec = callBound('RegExp.prototype.exec');
+	/** @type {object} */
+	var isRegexMarker = {};
 
 	var throwRegexMarker = function () {
 		throw isRegexMarker;
 	};
-	badStringifier = {
+	/** @type {{ toString(): never, valueOf(): never, [Symbol.toPrimitive]?(): never }} */
+	var badStringifier = {
 		toString: throwRegexMarker,
 		valueOf: throwRegexMarker
 	};
@@ -17071,32 +17352,37 @@ if (hasToStringTag) {
 	if (typeof Symbol.toPrimitive === 'symbol') {
 		badStringifier[Symbol.toPrimitive] = throwRegexMarker;
 	}
-}
 
-var $toString = callBound('Object.prototype.toString');
-var gOPD = Object.getOwnPropertyDescriptor;
-var regexClass = '[object RegExp]';
-
-module.exports = hasToStringTag
+	/** @type {import('.')} */
+	// @ts-expect-error TS can't figure out that the $exec call always throws
 	// eslint-disable-next-line consistent-return
-	? function isRegex(value) {
+	fn = function isRegex(value) {
 		if (!value || typeof value !== 'object') {
 			return false;
 		}
 
-		var descriptor = gOPD(value, 'lastIndex');
-		var hasLastIndexDataProperty = descriptor && has(descriptor, 'value');
+		// eslint-disable-next-line no-extra-parens
+		var descriptor = /** @type {NonNullable<typeof gOPD>} */ (gOPD)(/** @type {{ lastIndex?: unknown }} */ (value), 'lastIndex');
+		var hasLastIndexDataProperty = descriptor && hasOwn(descriptor, 'value');
 		if (!hasLastIndexDataProperty) {
 			return false;
 		}
 
 		try {
-			$exec(value, badStringifier);
+			// eslint-disable-next-line no-extra-parens
+			$exec(value, /** @type {string} */ (/** @type {unknown} */ (badStringifier)));
 		} catch (e) {
 			return e === isRegexMarker;
 		}
-	}
-	: function isRegex(value) {
+	};
+} else {
+	/** @type {(receiver: ThisParameterType<typeof Object.prototype.toString>, ...args: Parameters<typeof Object.prototype.toString>) => ReturnType<typeof Object.prototype.toString>} */
+	var $toString = callBound('Object.prototype.toString');
+	/** @const @type {'[object RegExp]'} */
+	var regexClass = '[object RegExp]';
+
+	/** @type {import('.')} */
+	fn = function isRegex(value) {
 		// In older browsers, typeof regex incorrectly returns 'function'
 		if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
 			return false;
@@ -17104,6 +17390,9 @@ module.exports = hasToStringTag
 
 		return $toString(value) === regexClass;
 	};
+}
+
+module.exports = fn;
 
 
 /***/ }),
@@ -17114,24 +17403,29 @@ module.exports = hasToStringTag
 "use strict";
 
 
-var toStr = Object.prototype.toString;
+var callBound = __nccwpck_require__(1785);
+var $toString = callBound('Object.prototype.toString');
 var hasSymbols = __nccwpck_require__(587)();
+var safeRegexTest = __nccwpck_require__(3055);
 
 if (hasSymbols) {
-	var symToStr = Symbol.prototype.toString;
-	var symStringRegex = /^Symbol\(.*\)$/;
+	var $symToStr = callBound('Symbol.prototype.toString');
+	var isSymString = safeRegexTest(/^Symbol\(.*\)$/);
+
+	/** @type {(value: object) => value is Symbol} */
 	var isSymbolObject = function isRealSymbolObject(value) {
 		if (typeof value.valueOf() !== 'symbol') {
 			return false;
 		}
-		return symStringRegex.test(symToStr.call(value));
+		return isSymString($symToStr(value));
 	};
 
+	/** @type {import('.')} */
 	module.exports = function isSymbol(value) {
 		if (typeof value === 'symbol') {
 			return true;
 		}
-		if (toStr.call(value) !== '[object Symbol]') {
+		if (!value || typeof value !== 'object' || $toString(value) !== '[object Symbol]') {
 			return false;
 		}
 		try {
@@ -17141,7 +17435,7 @@ if (hasSymbols) {
 		}
 	};
 } else {
-
+	/** @type {import('.')} */
 	module.exports = function isSymbol(value) {
 		// this environment does not support Symbols.
 		return  false && 0;
@@ -17163,6 +17457,31 @@ module.exports = Math.abs;
 
 /***/ }),
 
+/***/ 2650:
+/***/ ((module) => {
+
+"use strict";
+
+
+/** @type {import('./maxArrayLength')} */
+module.exports = 4294967295; // Math.pow(2, 32) - 1;
+
+
+/***/ }),
+
+/***/ 1798:
+/***/ ((module) => {
+
+"use strict";
+
+
+/** @type {import('./maxSafeInteger')} */
+// eslint-disable-next-line no-extra-parens
+module.exports = /** @type {import('./maxSafeInteger')} */ (Number.MAX_SAFE_INTEGER) || 9007199254740991; // Math.pow(2, 53) - 1;
+
+
+/***/ }),
+
 /***/ 924:
 /***/ ((module) => {
 
@@ -17171,6 +17490,50 @@ module.exports = Math.abs;
 
 /** @type {import('./floor')} */
 module.exports = Math.floor;
+
+
+/***/ }),
+
+/***/ 2851:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var $isNaN = __nccwpck_require__(7661);
+
+/** @type {import('./isFinite')} */
+module.exports = function isFinite(x) {
+	return (typeof x === 'number' || typeof x === 'bigint')
+        && !$isNaN(x)
+        && x !== Infinity
+        && x !== -Infinity;
+};
+
+
+
+/***/ }),
+
+/***/ 9558:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var $abs = __nccwpck_require__(9775);
+var $floor = __nccwpck_require__(924);
+
+var $isNaN = __nccwpck_require__(7661);
+var $isFinite = __nccwpck_require__(2851);
+
+/** @type {import('./isInteger')} */
+module.exports = function isInteger(argument) {
+	if (typeof argument !== 'number' || $isNaN(argument) || !$isFinite(argument)) {
+		return false;
+	}
+	var absValue = $abs(argument);
+	return $floor(absValue) === absValue;
+};
 
 
 /***/ }),
@@ -17499,7 +17862,7 @@ var y = d * 365.25;
  * @api public
  */
 
-module.exports = function(val, options) {
+module.exports = function (val, options) {
   options = options || {};
   var type = typeof val;
   if (type === 'string' && val.length > 0) {
@@ -17714,10 +18077,21 @@ var utilInspect = __nccwpck_require__(7265);
 var inspectCustom = utilInspect.custom;
 var inspectSymbol = isSymbol(inspectCustom) ? inspectCustom : null;
 
+var quotes = {
+    __proto__: null,
+    'double': '"',
+    single: "'"
+};
+var quoteREs = {
+    __proto__: null,
+    'double': /(["\\])/g,
+    single: /(['\\])/g
+};
+
 module.exports = function inspect_(obj, options, depth, seen) {
     var opts = options || {};
 
-    if (has(opts, 'quoteStyle') && (opts.quoteStyle !== 'single' && opts.quoteStyle !== 'double')) {
+    if (has(opts, 'quoteStyle') && !has(quotes, opts.quoteStyle)) {
         throw new TypeError('option "quoteStyle" must be "single" or "double"');
     }
     if (
@@ -17847,16 +18221,20 @@ module.exports = function inspect_(obj, options, depth, seen) {
     }
     if (isMap(obj)) {
         var mapParts = [];
-        mapForEach.call(obj, function (value, key) {
-            mapParts.push(inspect(key, obj, true) + ' => ' + inspect(value, obj));
-        });
+        if (mapForEach) {
+            mapForEach.call(obj, function (value, key) {
+                mapParts.push(inspect(key, obj, true) + ' => ' + inspect(value, obj));
+            });
+        }
         return collectionOf('Map', mapSize.call(obj), mapParts, indent);
     }
     if (isSet(obj)) {
         var setParts = [];
-        setForEach.call(obj, function (value) {
-            setParts.push(inspect(value, obj));
-        });
+        if (setForEach) {
+            setForEach.call(obj, function (value) {
+                setParts.push(inspect(value, obj));
+            });
+        }
         return collectionOf('Set', setSize.call(obj), setParts, indent);
     }
     if (isWeakMap(obj)) {
@@ -17880,6 +18258,17 @@ module.exports = function inspect_(obj, options, depth, seen) {
     if (isString(obj)) {
         return markBoxed(inspect(String(obj)));
     }
+    // note: in IE 8, sometimes `global !== window` but both are the prototypes of each other
+    /* eslint-env browser */
+    if (typeof window !== 'undefined' && obj === window) {
+        return '{ [object Window] }';
+    }
+    if (
+        (typeof globalThis !== 'undefined' && obj === globalThis)
+        || (typeof global !== 'undefined' && obj === global)
+    ) {
+        return '{ [object globalThis] }';
+    }
     if (!isDate(obj) && !isRegExp(obj)) {
         var ys = arrObjKeys(obj, inspect);
         var isPlainObject = gPO ? gPO(obj) === Object.prototype : obj instanceof Object || obj.constructor === Object;
@@ -17897,7 +18286,8 @@ module.exports = function inspect_(obj, options, depth, seen) {
 };
 
 function wrapQuotes(s, defaultStyle, opts) {
-    var quoteChar = (opts.quoteStyle || defaultStyle) === 'double' ? '"' : "'";
+    var style = opts.quoteStyle || defaultStyle;
+    var quoteChar = quotes[style];
     return quoteChar + s + quoteChar;
 }
 
@@ -17905,13 +18295,16 @@ function quote(s) {
     return $replace.call(String(s), /"/g, '&quot;');
 }
 
-function isArray(obj) { return toStr(obj) === '[object Array]' && (!toStringTag || !(typeof obj === 'object' && toStringTag in obj)); }
-function isDate(obj) { return toStr(obj) === '[object Date]' && (!toStringTag || !(typeof obj === 'object' && toStringTag in obj)); }
-function isRegExp(obj) { return toStr(obj) === '[object RegExp]' && (!toStringTag || !(typeof obj === 'object' && toStringTag in obj)); }
-function isError(obj) { return toStr(obj) === '[object Error]' && (!toStringTag || !(typeof obj === 'object' && toStringTag in obj)); }
-function isString(obj) { return toStr(obj) === '[object String]' && (!toStringTag || !(typeof obj === 'object' && toStringTag in obj)); }
-function isNumber(obj) { return toStr(obj) === '[object Number]' && (!toStringTag || !(typeof obj === 'object' && toStringTag in obj)); }
-function isBoolean(obj) { return toStr(obj) === '[object Boolean]' && (!toStringTag || !(typeof obj === 'object' && toStringTag in obj)); }
+function canTrustToString(obj) {
+    return !toStringTag || !(typeof obj === 'object' && (toStringTag in obj || typeof obj[toStringTag] !== 'undefined'));
+}
+function isArray(obj) { return toStr(obj) === '[object Array]' && canTrustToString(obj); }
+function isDate(obj) { return toStr(obj) === '[object Date]' && canTrustToString(obj); }
+function isRegExp(obj) { return toStr(obj) === '[object RegExp]' && canTrustToString(obj); }
+function isError(obj) { return toStr(obj) === '[object Error]' && canTrustToString(obj); }
+function isString(obj) { return toStr(obj) === '[object String]' && canTrustToString(obj); }
+function isNumber(obj) { return toStr(obj) === '[object Number]' && canTrustToString(obj); }
+function isBoolean(obj) { return toStr(obj) === '[object Boolean]' && canTrustToString(obj); }
 
 // Symbol and BigInt do have Symbol.toStringTag by spec, so that can't be used to eliminate false positives
 function isSymbol(obj) {
@@ -18055,8 +18448,10 @@ function inspectString(str, opts) {
         var trailer = '... ' + remaining + ' more character' + (remaining > 1 ? 's' : '');
         return inspectString($slice.call(str, 0, opts.maxStringLength), opts) + trailer;
     }
+    var quoteRE = quoteREs[opts.quoteStyle || 'single'];
+    quoteRE.lastIndex = 0;
     // eslint-disable-next-line no-control-regex
-    var s = $replace.call($replace.call(str, /(['\\])/g, '\\$1'), /[\x00-\x1f]/g, lowbyte);
+    var s = $replace.call($replace.call(str, quoteRE, '\\$1'), /[\x00-\x1f]/g, lowbyte);
     return wrapQuotes(s, 'single', opts);
 }
 
@@ -18357,6 +18752,31 @@ module.exports = function isArguments(value) {
 			toStr.call(value.callee) === '[object Function]';
 	}
 	return isArgs;
+};
+
+
+/***/ }),
+
+/***/ 3055:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var callBound = __nccwpck_require__(1785);
+var isRegex = __nccwpck_require__(6403);
+
+var $exec = callBound('RegExp.prototype.exec');
+var $TypeError = __nccwpck_require__(6361);
+
+/** @type {import('.')} */
+module.exports = function regexTester(regex) {
+	if (!isRegex(regex)) {
+		throw new $TypeError('`regex` must be a RegExp');
+	}
+	return function test(s) {
+		return $exec(regex, s) !== null;
+	};
 };
 
 
@@ -20008,6 +20428,239 @@ function coerce (version, options) {
     '.' + (match[3] || '0') +
     '.' + (match[4] || '0'), options)
 }
+
+
+/***/ }),
+
+/***/ 4056:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var GetIntrinsic = __nccwpck_require__(4538);
+var define = __nccwpck_require__(4564);
+var hasDescriptors = __nccwpck_require__(176)();
+var gOPD = __nccwpck_require__(8501);
+
+var $TypeError = __nccwpck_require__(6361);
+var $floor = GetIntrinsic('%Math.floor%');
+
+/** @type {import('.')} */
+module.exports = function setFunctionLength(fn, length) {
+	if (typeof fn !== 'function') {
+		throw new $TypeError('`fn` is not a function');
+	}
+	if (typeof length !== 'number' || length < 0 || length > 0xFFFFFFFF || $floor(length) !== length) {
+		throw new $TypeError('`length` must be a positive 32-bit integer');
+	}
+
+	var loose = arguments.length > 2 && !!arguments[2];
+
+	var functionLengthIsConfigurable = true;
+	var functionLengthIsWritable = true;
+	if ('length' in fn && gOPD) {
+		var desc = gOPD(fn, 'length');
+		if (desc && !desc.configurable) {
+			functionLengthIsConfigurable = false;
+		}
+		if (desc && !desc.writable) {
+			functionLengthIsWritable = false;
+		}
+	}
+
+	if (functionLengthIsConfigurable || functionLengthIsWritable || !loose) {
+		if (hasDescriptors) {
+			define(/** @type {Parameters<define>[0]} */ (fn), 'length', length, true, true);
+		} else {
+			define(/** @type {Parameters<define>[0]} */ (fn), 'length', length);
+		}
+	}
+	return fn;
+};
+
+
+/***/ }),
+
+/***/ 5846:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var $Object = __nccwpck_require__(8308);
+
+/** @type {import('./Object.setPrototypeOf')} */
+module.exports = $Object.setPrototypeOf || null;
+
+
+/***/ }),
+
+/***/ 9634:
+/***/ ((module) => {
+
+"use strict";
+
+
+/** @type {import('./Reflect.setPrototypeOf')} */
+module.exports = (typeof Reflect !== 'undefined' && Reflect.setPrototypeOf) || null;
+
+
+/***/ }),
+
+/***/ 4149:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var reflectSetProto = __nccwpck_require__(9634);
+var originalSetProto = __nccwpck_require__(5846);
+
+var setDunderProto = __nccwpck_require__(7874);
+
+var $TypeError = __nccwpck_require__(6361);
+
+/** @type {import('.')} */
+module.exports = reflectSetProto
+	? function setProto(O, proto) {
+		// @ts-expect-error TS can't narrow inside a closure, for some reason
+		if (reflectSetProto(O, proto)) {
+			return O;
+		}
+		throw new $TypeError('Reflect.setPrototypeOf: failed to set [[Prototype]]');
+	}
+	: originalSetProto || (
+		setDunderProto ? function setProto(O, proto) {
+			// @ts-expect-error TS can't narrow inside a closure, for some reason
+			setDunderProto(O, proto);
+			return O;
+		} : null
+	);
+
+
+/***/ }),
+
+/***/ 9967:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var RequireObjectCoercible = __nccwpck_require__(2177);
+var ToString = __nccwpck_require__(8572);
+var callBound = __nccwpck_require__(1785);
+var safeRegexTester = __nccwpck_require__(3055);
+
+var $replace = callBound('String.prototype.replace');
+var $charAt = callBound('String.prototype.charAt');
+var $slice = callBound('String.prototype.slice');
+
+var mvsIsWS = (/^\s$/).test('\u180E');
+/* eslint-disable no-control-regex */
+var leftWhitespace = mvsIsWS
+	? /^[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF]+/
+	: /^[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF]+/;
+var isWhitespace = safeRegexTester(mvsIsWS
+	? /[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF]$/
+	: /[\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF]$/);
+/* eslint-enable no-control-regex */
+
+module.exports = function trim() {
+	var S = $replace(ToString(RequireObjectCoercible(this)), leftWhitespace, '');
+	// scan back for the trailing whitespace boundary; a `$`-anchored regexp is quadratic on large internal whitespace runs
+	var end = S.length;
+	while (end > 0 && isWhitespace($charAt(S, end - 1))) {
+		end -= 1;
+	}
+	return $slice(S, 0, end);
+};
+
+
+/***/ }),
+
+/***/ 6332:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var callBind = __nccwpck_require__(2977);
+var define = __nccwpck_require__(9234);
+var RequireObjectCoercible = __nccwpck_require__(2177);
+
+var implementation = __nccwpck_require__(9967);
+var getPolyfill = __nccwpck_require__(9289);
+var shim = __nccwpck_require__(9298);
+
+var bound = callBind(getPolyfill());
+var boundMethod = function trim(receiver) {
+	RequireObjectCoercible(receiver);
+	return bound(receiver);
+};
+
+define(boundMethod, {
+	getPolyfill: getPolyfill,
+	implementation: implementation,
+	shim: shim
+});
+
+module.exports = boundMethod;
+
+
+/***/ }),
+
+/***/ 9289:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var implementation = __nccwpck_require__(9967);
+
+var zeroWidthSpace = '\u200b';
+var mongolianVowelSeparator = '\u180E';
+
+module.exports = function getPolyfill() {
+	if (
+		String.prototype.trim
+		&& zeroWidthSpace.trim() === zeroWidthSpace
+		&& mongolianVowelSeparator.trim() === mongolianVowelSeparator
+		&& ('_' + mongolianVowelSeparator).trim() === ('_' + mongolianVowelSeparator)
+		&& (mongolianVowelSeparator + '_').trim() === (mongolianVowelSeparator + '_')
+	) {
+		return String.prototype.trim;
+	}
+	return implementation;
+};
+
+
+/***/ }),
+
+/***/ 9298:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var supportsDescriptors = __nccwpck_require__(176)();
+var defineDataProperty = __nccwpck_require__(4564);
+
+var getPolyfill = __nccwpck_require__(9289);
+
+module.exports = function shimStringTrim() {
+	var polyfill = getPolyfill();
+
+	if (String.prototype.trim !== polyfill) {
+		if (supportsDescriptors) {
+			defineDataProperty(String.prototype, 'trim', polyfill, true);
+		} else {
+			defineDataProperty(String.prototype, 'trim', polyfill);
+		}
+	}
+
+	return polyfill;
+};
 
 
 /***/ }),
@@ -23268,11 +23921,77 @@ class Request {
     }
   }
 
-  onUpgrade (statusCode, headers, socket) {
+  /**
+   * @param {number|null} statusCode
+   * @param {Buffer[]|null} headers
+   * @param {import('node:stream').Duplex} socket
+   * @param {string} [statusText]
+   */
+  onUpgrade (statusCode, headers, socket, statusText = '') {
+    this.onFinally()
+
     assert(!this.aborted)
     assert(!this.completed)
 
-    return this[kHandler].onUpgrade(statusCode, headers, socket)
+    if (statusCode !== null) {
+      this.#publishUpgradeHeaders(statusCode, headers, statusText)
+    }
+
+    const result = this[kHandler].onUpgrade(statusCode, headers, socket)
+
+    if (!this.aborted) {
+      this.completed = true
+      if (statusCode !== null) {
+        this.#publishUpgradeTrailers()
+      }
+    }
+
+    return result
+  }
+
+  /**
+   * @param {number} statusCode
+   * @param {import('node:http2').IncomingHttpHeaders} headers
+   * @param {(headers: import('node:http2').IncomingHttpHeaders) => Buffer[]} parseHeaders
+   * @param {string} [statusText]
+   */
+  onUpgradeResponse (statusCode, headers, parseHeaders, statusText = '') {
+    assert(!this.aborted)
+    assert(this.completed)
+
+    if (channels.headers.hasSubscribers) {
+      this.#publishUpgradeHeaders(statusCode, parseHeaders(headers), statusText)
+    }
+    this.#publishUpgradeTrailers()
+  }
+
+  /**
+   * @param {Error} error
+   */
+  onUpgradeError (error) {
+    assert(!this.aborted)
+    assert(this.completed)
+
+    if (channels.error.hasSubscribers) {
+      channels.error.publish({ request: this, error })
+    }
+  }
+
+  /**
+   * @param {number} statusCode
+   * @param {Buffer[]} headers
+   * @param {string} statusText
+   */
+  #publishUpgradeHeaders (statusCode, headers, statusText) {
+    if (channels.headers.hasSubscribers) {
+      channels.headers.publish({ request: this, response: { statusCode, headers, statusText } })
+    }
+  }
+
+  #publishUpgradeTrailers () {
+    if (channels.trailers.hasSubscribers) {
+      channels.trailers.publish({ request: this, trailers: [] })
+    }
   }
 
   onComplete (trailers) {
@@ -24413,7 +25132,7 @@ function defaultFactory (origin, opts) {
 }
 
 class Agent extends DispatcherBase {
-  constructor ({ factory = defaultFactory, maxRedirections = 0, connect, ...options } = {}) {
+  constructor ({ factory = defaultFactory, maxRedirections = 0, connect, tls, ...options } = {}) {
     if (typeof factory !== 'function') {
       throw new InvalidArgumentError('factory must be a function.')
     }
@@ -24432,11 +25151,15 @@ class Agent extends DispatcherBase {
       connect = { ...connect }
     }
 
+    if (tls && typeof tls !== 'function') {
+      tls = { ...tls }
+    }
+
     this[kInterceptors] = options.interceptors?.Agent && Array.isArray(options.interceptors.Agent)
       ? options.interceptors.Agent
       : [createRedirectInterceptor({ maxRedirections })]
 
-    this[kOptions] = { ...util.deepClone(options), connect }
+    this[kOptions] = { ...util.deepClone(options), connect, tls }
     this[kOptions].interceptors = options.interceptors
       ? { ...options.interceptors }
       : undefined
@@ -25176,7 +25899,7 @@ class Parser {
   }
 
   onUpgrade (head) {
-    const { upgrade, client, socket, headers, statusCode } = this
+    const { upgrade, client, socket, headers, statusCode, statusText } = this
 
     assert(upgrade)
     assert(client[kSocket] === socket)
@@ -25211,9 +25934,10 @@ class Parser {
     client.emit('disconnect', client[kUrl], [client], new InformationalError('upgrade'))
 
     try {
-      request.onUpgrade(statusCode, headers, socket)
-    } catch (err) {
-      util.destroy(socket, err)
+      request.onUpgrade(statusCode, headers, socket, statusText)
+    } catch (error) {
+      util.errorRequest(client, request, error)
+      util.destroy(socket, error)
     }
 
     client[kResume]()
@@ -25470,8 +26194,6 @@ async function connectH1 (client, socket) {
   socket[kParser] = new Parser(client, socket, llhttpInstance)
 
   addListener(socket, 'error', function (err) {
-    assert(err.code !== 'ERR_TLS_CERT_ALTNAME_INVALID')
-
     const parser = this[kParser]
 
     // On Mac OS, we get an ECONNRESET even if there is a full body to be forwarded
@@ -25620,7 +26342,7 @@ async function connectH1 (client, socket) {
 
 function clearIdleSocketValidation (socket) {
   if (socket[kIdleSocketValidationTimeout]) {
-    clearTimeout(socket[kIdleSocketValidationTimeout])
+    clearImmediate(socket[kIdleSocketValidationTimeout])
     socket[kIdleSocketValidationTimeout] = null
   }
 
@@ -25629,15 +26351,23 @@ function clearIdleSocketValidation (socket) {
 
 function scheduleIdleSocketValidation (client, socket) {
   socket[kIdleSocketValidation] = 1
-  socket[kIdleSocketValidationTimeout] = setTimeout(() => {
+  // Yield to the check phase (after poll) so unsolicited bytes / FIN / RST
+  // already pending on this idle keep-alive socket are processed before the
+  // next request is written (GHSA-35p6-xmwp-9g52).
+  //
+  // setTimeout(0) pays Node's ~1ms timer floor on every sequential reuse
+  // (#5493). setImmediate avoids that, but an *unref'd* Immediate lets poll
+  // block for ~500ms when the event loop is otherwise idle (#5600 / #5606).
+  // A ref'd Immediate both keeps the pending request alive and makes poll
+  // return immediately — the hybrid those issues asked for.
+  socket[kIdleSocketValidationTimeout] = setImmediate(() => {
     socket[kIdleSocketValidationTimeout] = null
     socket[kIdleSocketValidation] = 2
 
     if (client[kSocket] === socket && !socket.destroyed) {
       client[kResume]()
     }
-  }, 0)
-  socket[kIdleSocketValidationTimeout].unref?.()
+  })
 }
 
 /**
@@ -25786,12 +26516,22 @@ function writeH1 (client, request) {
   const socket = client[kSocket]
   clearIdleSocketValidation(socket)
 
-  const abort = (err) => {
-    if (request.aborted || request.completed) {
+  /**
+   * @param {Error} [error]
+   */
+  const abort = (error) => {
+    if (request.aborted) {
       return
     }
 
-    util.errorRequest(client, request, err || new RequestAbortedError())
+    if (request.completed) {
+      if (request.upgrade || request.method === 'CONNECT') {
+        util.destroy(socket, new InformationalError('aborted'))
+      }
+      return
+    }
+
+    util.errorRequest(client, request, error || new RequestAbortedError())
 
     util.destroy(body)
     util.destroy(socket, new InformationalError('aborted'))
@@ -26249,6 +26989,7 @@ module.exports = connectH1
 
 
 const assert = __nccwpck_require__(8061)
+const { errorMonitor } = __nccwpck_require__(5673)
 const { pipeline } = __nccwpck_require__(4492)
 const util = __nccwpck_require__(3983)
 const {
@@ -26325,6 +27066,15 @@ function parseH2Headers (headers) {
   return result
 }
 
+/**
+ * @param {import('node:http2').IncomingHttpHeaders} headers
+ * @returns {Buffer[]}
+ */
+function parseH2ResponseHeaders (headers) {
+  const { [HTTP2_HEADER_STATUS]: _statusCode, ...realHeaders } = headers
+  return parseH2Headers(realHeaders)
+}
+
 async function connectH2 (client, socket) {
   client[kSocket] = socket
 
@@ -26374,8 +27124,6 @@ async function connectH2 (client, socket) {
   socket[kHTTP2Session] = session
 
   util.addListener(socket, 'error', function (err) {
-    assert(err.code !== 'ERR_TLS_CERT_ALTNAME_INVALID')
-
     this[kError] = err
 
     this[kClient][kOnError](err)
@@ -26449,8 +27197,6 @@ function resumeH2 (client) {
 }
 
 function onHttp2SessionError (err) {
-  assert(err.code !== 'ERR_TLS_CERT_ALTNAME_INVALID')
-
   this[kSocket][kError] = err
   this[kClient][kOnError](err)
 }
@@ -26545,22 +27291,32 @@ function writeH2 (client, request) {
   headers[HTTP2_HEADER_AUTHORITY] = host || `${hostname}${port ? `:${port}` : ''}`
   headers[HTTP2_HEADER_METHOD] = method
 
-  const abort = (err) => {
-    if (request.aborted || request.completed) {
+  /**
+   * @param {Error} [error]
+   */
+  const abort = (error) => {
+    if (request.aborted) {
       return
     }
 
-    err = err || new RequestAbortedError()
+    if (request.completed) {
+      if (method === 'CONNECT' && stream != null) {
+        util.destroy(stream, error || new RequestAbortedError())
+      }
+      return
+    }
 
-    util.errorRequest(client, request, err)
+    error = error || new RequestAbortedError()
+
+    util.errorRequest(client, request, error)
 
     if (stream != null) {
-      util.destroy(stream, err)
+      util.destroy(stream, error)
     }
 
     // We do not destroy the socket as we can continue using the session
     // the stream get's destroyed and the session remains to create new streams
-    util.destroy(body, err)
+    util.destroy(body, error)
     client[kQueue][client[kRunningIdx]++] = null
     client[kResume]()
   }
@@ -26579,25 +27335,57 @@ function writeH2 (client, request) {
 
   if (method === 'CONNECT') {
     session.ref()
-    // We are already connected, streams are pending, first request
-    // will create a new stream. We trigger a request to create the stream and wait until
-    // `ready` event is triggered
     // We disabled endStream to allow the user to write to the stream
     stream = session.request(headers, { endStream: false, signal })
+    let upgradeResponseFinished = false
 
-    if (stream.id && !stream.pending) {
-      request.onUpgrade(null, null, stream)
-      ++session[kOpenStreams]
-      client[kQueue][client[kRunningIdx]++] = null
-    } else {
-      stream.once('ready', () => {
-        request.onUpgrade(null, null, stream)
-        ++session[kOpenStreams]
-        client[kQueue][client[kRunningIdx]++] = null
-      })
+    /**
+     * @param {import('node:http2').IncomingHttpHeaders} headers
+     */
+    const onResponse = (headers) => {
+      upgradeResponseFinished = true
+      stream.off(errorMonitor, onUpgradeError)
+      request.onUpgradeResponse(Number(headers[HTTP2_HEADER_STATUS]), headers, parseH2ResponseHeaders)
     }
 
+    /**
+     * @param {Error} error
+     */
+    const onUpgradeError = (error) => {
+      upgradeResponseFinished = true
+      stream.off('response', onResponse)
+      request.onUpgradeError(error)
+    }
+
+    const onReady = () => {
+      try {
+        request.onUpgrade(null, null, stream)
+      } catch (error) {
+        stream.off('response', onResponse)
+        abort(error)
+        return
+      }
+
+      if (request.aborted) {
+        return
+      }
+
+      stream.off('error', abort)
+      stream.once(errorMonitor, onUpgradeError)
+      client[kQueue][client[kRunningIdx]++] = null
+    }
+
+    stream.once('response', onResponse)
+    stream.once('error', abort)
+    ++session[kOpenStreams]
+    onReady()
+
     stream.once('close', () => {
+      if (!upgradeResponseFinished && request.completed) {
+        stream.off('response', onResponse)
+        stream.off(errorMonitor, onUpgradeError)
+        request.onUpgradeError(new InformationalError(`HTTP/2: "stream error" received - code ${stream.rstCode}`))
+      }
       session[kOpenStreams] -= 1
       if (session[kOpenStreams] === 0) session.unref()
     })
@@ -27107,9 +27895,10 @@ class Client extends DispatcherBase {
     // h2
     maxConcurrentStreams,
     allowH2,
-    webSocket
+    webSocket,
+    eventSource
   } = {}) {
-    super({ webSocket })
+    super({ webSocket, eventSource })
 
     if (keepAlive !== undefined) {
       throw new InvalidArgumentError('unsupported keepAlive, use pipelining=0 instead')
@@ -27631,6 +28420,7 @@ module.exports = Client
 "use strict";
 
 
+const buffer = __nccwpck_require__(2254)
 const Dispatcher = __nccwpck_require__(7781)
 const {
   ClientDestroyedError,
@@ -27643,6 +28433,7 @@ const kOnDestroyed = Symbol('onDestroyed')
 const kOnClosed = Symbol('onClosed')
 const kInterceptedDispatch = Symbol('Intercepted Dispatch')
 const kWebSocketOptions = Symbol('webSocketOptions')
+const kEventSourceOptions = Symbol('eventSourceOptions')
 
 class DispatcherBase extends Dispatcher {
   constructor (opts) {
@@ -27653,12 +28444,19 @@ class DispatcherBase extends Dispatcher {
     this[kClosed] = false
     this[kOnClosed] = []
     this[kWebSocketOptions] = opts?.webSocket ?? {}
+    this[kEventSourceOptions] = opts?.eventSource ?? {}
   }
 
   get webSocketOptions () {
     return {
       maxFragments: this[kWebSocketOptions].maxFragments ?? 131072,
       maxPayloadSize: this[kWebSocketOptions].maxPayloadSize ?? 128 * 1024 * 1024
+    }
+  }
+
+  get eventSourceOptions () {
+    return {
+      maxEventSize: this[kEventSourceOptions].maxEventSize ?? buffer.kStringMaxLength
     }
   }
 
@@ -29309,6 +30107,7 @@ class RetryHandler {
     this.end = null
     this.etag = null
     this.resume = null
+    this.headersSent = false
 
     // Handle possible onConnect duplication
     this.handler.onConnect(reason => {
@@ -29319,6 +30118,20 @@ class RetryHandler {
         this.reason = reason
       }
     })
+  }
+
+  checkpointResponseEnd (headers, resume) {
+    if (this.end == null && this.opts.method !== 'HEAD') {
+      const contentLength = headers['content-length']
+      this.end = contentLength != null ? Number(contentLength) - 1 : null
+
+      assert(
+        this.end == null || Number.isFinite(this.end),
+        'invalid content-length'
+      )
+    }
+
+    this.resume = this.end != null ? resume : null
   }
 
   onRequestSent () {
@@ -29409,7 +30222,12 @@ class RetryHandler {
     this.retryCount += 1
 
     if (statusCode >= 300) {
-      if (this.retryOpts.statusCodes.includes(statusCode) === false) {
+      // Only expose a response if no earlier attempt has reached the caller.
+      // Otherwise abort this attempt so the error settles the existing body
+      // instead of replacing it with a new response.
+      if (!this.headersSent && this.retryOpts.statusCodes.includes(statusCode) === false) {
+        this.headersSent = true
+        this.checkpointResponseEnd(headers, resume)
         return this.handler.onHeaders(
           statusCode,
           rawHeaders,
@@ -29478,8 +30296,15 @@ class RetryHandler {
 
       const { start, size, end = size - 1 } = contentRange
 
-      assert(this.start === start, 'content-range mismatch')
-      assert(this.end == null || this.end === end, 'content-range mismatch')
+      if (this.start !== start || (this.end != null && this.end !== end)) {
+        this.abort(
+          new RequestRetryError('Content-Range mismatch', statusCode, {
+            headers,
+            data: { count: this.retryCount }
+          })
+        )
+        return false
+      }
 
       this.resume = resume
       return true
@@ -29491,6 +30316,7 @@ class RetryHandler {
         const range = parseRangeHeader(headers['content-range'])
 
         if (range == null) {
+          this.headersSent = true
           return this.handler.onHeaders(
             statusCode,
             rawHeaders,
@@ -29529,6 +30355,7 @@ class RetryHandler {
       )
 
       this.resume = resume
+      this.headersSent = true
       this.etag = headers.etag != null ? headers.etag : null
 
       // Weak etags are not useful for comparison nor cache
@@ -29568,7 +30395,7 @@ class RetryHandler {
   }
 
   onError (err) {
-    if (this.aborted || isDisturbed(this.opts.body)) {
+    if (this.aborted || isDisturbed(this.opts.body) || (this.headersSent && this.resume == null)) {
       return this.handler.onError(err)
     }
 
@@ -34030,6 +34857,7 @@ module.exports = {
 
 "use strict";
 
+const buffer = __nccwpck_require__(2254)
 const { Transform } = __nccwpck_require__(4492)
 const { isASCIINumber, isValidLastEventId } = __nccwpck_require__(8865)
 
@@ -34053,6 +34881,63 @@ const COLON = 0x3A
  * @type {32} SPACE
  */
 const SPACE = 0x20
+
+const defaultMaxEventSize = buffer.kStringMaxLength
+
+const DATA = Buffer.from('data')
+const EVENT = Buffer.from('event')
+const ID = Buffer.from('id')
+const RETRY = Buffer.from('retry')
+
+// Each data field creates a string node, and each unconsumed input chunk keeps
+// a Buffer wrapper. The absolute ceiling protects the large default byte limit.
+const minParserItems = 1024
+const maxParserItems = 131072
+const bytesPerParserItem = 128
+
+function isASCIINumberBytes (buffer, start) {
+  if (start >= buffer.length) {
+    return false
+  }
+
+  for (let i = start; i < buffer.length; i++) {
+    if (buffer[i] < 0x30 || buffer[i] > 0x39) {
+      return false
+    }
+  }
+
+  return true
+}
+
+function isValidLastEventIdBytes (buffer, start) {
+  for (let i = start; i < buffer.length; i++) {
+    if (buffer[i] === 0x00) {
+      return false
+    }
+  }
+
+  return true
+}
+
+function isFieldName (line, length, field) {
+  if (length !== field.length) {
+    return false
+  }
+
+  for (let i = 0; i < length; i++) {
+    if (line[i] !== field[i]) {
+      return false
+    }
+  }
+
+  return true
+}
+
+function createMaxEventSizeExceededError () {
+  const error = new Error('EventSource message size exceeded')
+  error.aborted = false
+  return error
+}
 
 /**
  * @typedef {object} EventSourceStreamEvent
@@ -34094,11 +34979,21 @@ class EventSourceStream extends Transform {
   eventEndCheck = false
 
   /**
-   * @type {Buffer}
+   * @type {Buffer[]}
    */
-  buffer = null
+  chunks = []
 
+  chunkIndex = 0
   pos = 0
+  lineChunkIndex = 0
+  linePos = 0
+  lineLength = 0
+  eventSize = 0
+  eventFieldSizes = { data: 0, event: 0, id: 0, retry: 0 }
+  dataLineCount = 0
+  maxEventSize
+  maxDataLines
+  maxBufferedChunks
 
   event = {
     data: undefined,
@@ -34109,6 +35004,7 @@ class EventSourceStream extends Transform {
 
   /**
    * @param {object} options
+   * @param {number} [options.maxEventSize]
    * @param {eventSourceSettings} options.eventSourceSettings
    * @param {Function} [options.push]
    */
@@ -34120,6 +35016,12 @@ class EventSourceStream extends Transform {
     super(options)
 
     this.state = options.eventSourceSettings || {}
+    this.maxEventSize = options.maxEventSize ?? defaultMaxEventSize
+    const parserItemLimit = this.maxEventSize > 0
+      ? Math.min(maxParserItems, Math.max(minParserItems, Math.floor(this.maxEventSize / bytesPerParserItem)))
+      : 0
+    this.maxDataLines = parserItemLimit
+    this.maxBufferedChunks = parserItemLimit
     if (options.push) {
       this.push = options.push
     }
@@ -34137,92 +35039,28 @@ class EventSourceStream extends Transform {
       return
     }
 
-    // Cache the chunk in the buffer, as the data might not be complete while
-    // processing it
-    // TODO: Investigate if there is a more performant way to handle
-    // incoming chunks
-    // see: https://github.com/nodejs/undici/issues/2630
-    if (this.buffer) {
-      this.buffer = Buffer.concat([this.buffer, chunk])
-    } else {
-      this.buffer = chunk
+    // A leading line ending can immediately release the currently buffered
+    // line, even when it uses the final allowed chunk slot.
+    if (this.maxEventSize > 0 &&
+        this.chunks.length >= this.maxBufferedChunks &&
+        chunk[0] !== LF && chunk[0] !== CR) {
+      callback(createMaxEventSizeExceededError())
+      return
     }
+    this.chunks.push(chunk)
 
     // Strip leading byte-order-mark if we opened the stream and started
     // the processing of the incoming data
     if (this.checkBOM) {
-      switch (this.buffer.length) {
-        case 1:
-          // Check if the first byte is the same as the first byte of the BOM
-          if (this.buffer[0] === BOM[0]) {
-            // If it is, we need to wait for more data
-            callback()
-            return
-          }
-          // Set the checkBOM flag to false as we don't need to check for the
-          // BOM anymore
-          this.checkBOM = false
-
-          // The buffer only contains one byte so we need to wait for more data
-          callback()
-          return
-        case 2:
-          // Check if the first two bytes are the same as the first two bytes
-          // of the BOM
-          if (
-            this.buffer[0] === BOM[0] &&
-            this.buffer[1] === BOM[1]
-          ) {
-            // If it is, we need to wait for more data, because the third byte
-            // is needed to determine if it is the BOM or not
-            callback()
-            return
-          }
-
-          // Set the checkBOM flag to false as we don't need to check for the
-          // BOM anymore
-          this.checkBOM = false
-          break
-        case 3:
-          // Check if the first three bytes are the same as the first three
-          // bytes of the BOM
-          if (
-            this.buffer[0] === BOM[0] &&
-            this.buffer[1] === BOM[1] &&
-            this.buffer[2] === BOM[2]
-          ) {
-            // If it is, we can drop the buffered data, as it is only the BOM
-            this.buffer = Buffer.alloc(0)
-            // Set the checkBOM flag to false as we don't need to check for the
-            // BOM anymore
-            this.checkBOM = false
-
-            // Await more data
-            callback()
-            return
-          }
-          // If it is not the BOM, we can start processing the data
-          this.checkBOM = false
-          break
-        default:
-          // The buffer is longer than 3 bytes, so we can drop the BOM if it is
-          // present
-          if (
-            this.buffer[0] === BOM[0] &&
-            this.buffer[1] === BOM[1] &&
-            this.buffer[2] === BOM[2]
-          ) {
-            // Remove the BOM from the buffer
-            this.buffer = this.buffer.subarray(3)
-          }
-
-          // Set the checkBOM flag to false as we don't need to check for the
-          this.checkBOM = false
-          break
+      if (this.handleBOM()) {
+        callback()
+        return
       }
     }
 
-    while (this.pos < this.buffer.length) {
+    while (this.hasCurrentByte()) {
+      const byte = this.currentByte()
+
       // If the previous line ended with an end-of-line, we need to check
       // if the next character is also an end-of-line.
       if (this.eventEndCheck) {
@@ -34235,10 +35073,9 @@ class EventSourceStream extends Transform {
         if (this.crlfCheck) {
           // If the current character is a line feed, we can remove it
           // from the buffer and reset the crlfCheck flag
-          if (this.buffer[this.pos] === LF) {
-            this.buffer = this.buffer.subarray(this.pos + 1)
-            this.pos = 0
+          if (byte === LF) {
             this.crlfCheck = false
+            this.consumeCurrentByte()
 
             // It is possible that the line feed is not the end of the
             // event. We need to check if the next character is an
@@ -34254,19 +35091,17 @@ class EventSourceStream extends Transform {
           this.crlfCheck = false
         }
 
-        if (this.buffer[this.pos] === LF || this.buffer[this.pos] === CR) {
+        if (byte === LF || byte === CR) {
           // If the current character is a carriage return, we need to
           // set the crlfCheck flag to true, as we need to check if the
           // next character is a line feed so we can remove it from the
           // buffer
-          if (this.buffer[this.pos] === CR) {
+          if (byte === CR) {
             this.crlfCheck = true
           }
 
-          this.buffer = this.buffer.subarray(this.pos + 1)
-          this.pos = 0
-          if (
-            this.event.data !== undefined || this.event.event || this.event.id || this.event.retry) {
+          this.consumeCurrentByte()
+          if (this.hasPendingEvent()) {
             this.processEvent(this.event)
           }
           this.clearEvent()
@@ -34280,22 +35115,23 @@ class EventSourceStream extends Transform {
 
       // If the current character is an end-of-line, we can process the
       // line
-      if (this.buffer[this.pos] === LF || this.buffer[this.pos] === CR) {
+      if (byte === LF || byte === CR) {
         // If the current character is a carriage return, we need to
         // set the crlfCheck flag to true, as we need to check if the
         // next character is a line feed
-        if (this.buffer[this.pos] === CR) {
+        if (byte === CR) {
           this.crlfCheck = true
         }
 
         // In any case, we can process the line as we reached an
         // end-of-line character
-        this.parseLine(this.buffer.subarray(0, this.pos), this.event)
-
-        // Remove the processed line from the buffer
-        this.buffer = this.buffer.subarray(this.pos + 1)
-        // Reset the position as we removed the processed line from the buffer
-        this.pos = 0
+        try {
+          this.parseLine(this.readLine(), this.event)
+        } catch (error) {
+          callback(error)
+          return
+        }
+        this.consumeCurrentByte()
         // A line was processed and this could be the end of the event. We need
         // to check if the next line is empty to determine if the event is
         // finished.
@@ -34303,15 +35139,28 @@ class EventSourceStream extends Transform {
         continue
       }
 
-      this.pos++
+      // readLine() is only called after CR or LF. Reject an unfinished line
+      // before it can retain an unbounded number of decoded chunks. The seven
+      // extra bytes allow the longest field prefix ("event: " or "retry: ").
+      if (this.maxEventSize > 0 && ++this.lineLength > this.maxEventSize + 7) {
+        callback(createMaxEventSizeExceededError())
+        return
+      }
+      this.advanceCursor()
     }
 
     callback()
   }
 
+  _destroy (error, callback) {
+    this.chunks.length = 0
+    this.clearEvent()
+    super._destroy(error, callback)
+  }
+
   /**
    * @param {Buffer} line
-   * @param {EventStreamEvent} event
+   * @param {EventSourceStreamEvent} event
    */
   parseLine (line, event) {
     // If the line is empty (a blank line)
@@ -34328,65 +35177,72 @@ class EventSourceStream extends Transform {
       return
     }
 
-    let field = ''
-    let value = ''
+    let fieldLength = line.length
+    let valueStart = line.length
 
     // If the line contains a U+003A COLON character (:)
     if (colonPosition !== -1) {
-      // Collect the characters on the line before the first U+003A COLON
-      // character (:), and let field be that string.
-      // TODO: Investigate if there is a more performant way to extract the
-      // field
-      // see: https://github.com/nodejs/undici/issues/2630
-      field = line.subarray(0, colonPosition).toString('utf8')
+      fieldLength = colonPosition
 
       // Collect the characters on the line after the first U+003A COLON
       // character (:), and let value be that string.
       // If value starts with a U+0020 SPACE character, remove it from value.
-      let valueStart = colonPosition + 1
+      valueStart = colonPosition + 1
       if (line[valueStart] === SPACE) {
         ++valueStart
       }
-      // TODO: Investigate if there is a more performant way to extract the
-      // value
-      // see: https://github.com/nodejs/undici/issues/2630
-      value = line.subarray(valueStart).toString('utf8')
-
-      // Otherwise, the string is not empty but does not contain a U+003A COLON
-      // character (:)
-    } else {
-      // Process the field using the steps described below, using the whole
-      // line as the field name, and the empty string as the field value.
-      field = line.toString('utf8')
-      value = ''
     }
 
-    // Modify the event with the field name and value. The value is also
-    // decoded as UTF-8
-    switch (field) {
-      case 'data':
-        if (event[field] === undefined) {
-          event[field] = value
-        } else {
-          event[field] += `\n${value}`
-        }
-        break
-      case 'retry':
-        if (isASCIINumber(value)) {
-          event[field] = value
-        }
-        break
-      case 'id':
-        if (isValidLastEventId(value)) {
-          event[field] = value
-        }
-        break
-      case 'event':
-        if (value.length > 0) {
-          event[field] = value
-        }
-        break
+    if (isFieldName(line, fieldLength, DATA)) {
+      if (this.maxEventSize > 0 && this.dataLineCount >= this.maxDataLines) {
+        throw createMaxEventSizeExceededError()
+      }
+      const valueBytes = line.length - valueStart
+      const dataSize = this.eventFieldSizes.data + (event.data === undefined ? 0 : 1) + valueBytes
+      this.setEventFieldSize('data', dataSize)
+
+      const value = line.toString('utf8', valueStart)
+
+      if (event.data === undefined) {
+        event.data = value
+      } else {
+        event.data += `\n${value}`
+      }
+      this.dataLineCount++
+      return
     }
+
+    if (isFieldName(line, fieldLength, RETRY)) {
+      if (isASCIINumberBytes(line, valueStart)) {
+        this.setEventFieldSize('retry', line.length - valueStart)
+        event.retry = line.toString('utf8', valueStart)
+      }
+      return
+    }
+
+    if (isFieldName(line, fieldLength, ID)) {
+      if (isValidLastEventIdBytes(line, valueStart)) {
+        this.setEventFieldSize('id', line.length - valueStart)
+        event.id = line.toString('utf8', valueStart)
+      }
+      return
+    }
+
+    if (isFieldName(line, fieldLength, EVENT)) {
+      if (valueStart < line.length) {
+        this.setEventFieldSize('event', line.length - valueStart)
+        event.event = line.toString('utf8', valueStart)
+      }
+    }
+  }
+
+  setEventFieldSize (field, size) {
+    const eventSize = this.eventSize - this.eventFieldSizes[field] + size
+    if (this.maxEventSize > 0 && eventSize > this.maxEventSize) {
+      throw createMaxEventSizeExceededError()
+    }
+    this.eventSize = eventSize
+    this.eventFieldSizes[field] = size
   }
 
   /**
@@ -34415,12 +35271,159 @@ class EventSourceStream extends Transform {
   }
 
   clearEvent () {
-    this.event = {
-      data: undefined,
-      event: undefined,
-      id: undefined,
-      retry: undefined
+    this.event.data = undefined
+    this.event.event = undefined
+    this.event.id = undefined
+    this.event.retry = undefined
+    this.eventSize = 0
+    this.dataLineCount = 0
+    this.eventFieldSizes.data = 0
+    this.eventFieldSizes.event = 0
+    this.eventFieldSizes.id = 0
+    this.eventFieldSizes.retry = 0
+  }
+
+  hasPendingEvent () {
+    return this.event.data !== undefined ||
+      this.event.event !== undefined ||
+      this.event.id !== undefined ||
+      this.event.retry !== undefined
+  }
+
+  hasCurrentByte () {
+    return this.chunkIndex < this.chunks.length &&
+      this.pos < this.chunks[this.chunkIndex].length
+  }
+
+  currentByte () {
+    return this.chunks[this.chunkIndex][this.pos]
+  }
+
+  consumeCurrentByte () {
+    this.advanceCursor()
+    this.syncLineStartToCursor()
+  }
+
+  advanceCursor () {
+    this.pos++
+
+    while (this.chunkIndex < this.chunks.length && this.pos >= this.chunks[this.chunkIndex].length) {
+      this.chunkIndex++
+      this.pos = 0
     }
+  }
+
+  syncLineStartToCursor () {
+    this.lineChunkIndex = this.chunkIndex
+    this.linePos = this.pos
+    this.lineLength = 0
+    this.dropConsumedChunks()
+  }
+
+  dropConsumedChunks () {
+    if (this.lineChunkIndex > 0) {
+      const consumed = this.lineChunkIndex
+      this.chunks.splice(0, consumed)
+      this.lineChunkIndex = 0
+      this.chunkIndex -= consumed
+    }
+
+    if (this.chunkIndex === this.chunks.length) {
+      this.chunks.length = 0
+      this.chunkIndex = 0
+      this.pos = 0
+      this.lineChunkIndex = 0
+      this.linePos = 0
+    }
+  }
+
+  readLine () {
+    if (this.lineChunkIndex === this.chunkIndex) {
+      return this.chunks[this.chunkIndex].subarray(this.linePos, this.pos)
+    }
+
+    const chunks = []
+    let length = 0
+
+    for (let i = this.lineChunkIndex; i <= this.chunkIndex; i++) {
+      const chunk = this.chunks[i]
+      const start = i === this.lineChunkIndex ? this.linePos : 0
+      const end = i === this.chunkIndex ? this.pos : chunk.length
+      const slice = chunk.subarray(start, end)
+      length += slice.length
+      chunks.push(slice)
+    }
+
+    return Buffer.concat(chunks, length)
+  }
+
+  peekBufferedByte (offset) {
+    let chunkIndex = this.lineChunkIndex
+    let pos = this.linePos
+
+    while (chunkIndex < this.chunks.length) {
+      const chunk = this.chunks[chunkIndex]
+      const remaining = chunk.length - pos
+
+      if (offset < remaining) {
+        return chunk[pos + offset]
+      }
+
+      offset -= remaining
+      chunkIndex++
+      pos = 0
+    }
+  }
+
+  discardLeadingBytes (count) {
+    while (count > 0 && this.lineChunkIndex < this.chunks.length) {
+      const chunk = this.chunks[this.lineChunkIndex]
+      const remaining = chunk.length - this.linePos
+
+      if (count < remaining) {
+        this.linePos += count
+        count = 0
+      } else {
+        count -= remaining
+        this.lineChunkIndex++
+        this.linePos = 0
+      }
+    }
+
+    this.chunkIndex = this.lineChunkIndex
+    this.pos = this.linePos
+    this.dropConsumedChunks()
+  }
+
+  handleBOM () {
+    const first = this.peekBufferedByte(0)
+    const second = this.peekBufferedByte(1)
+    const third = this.peekBufferedByte(2)
+
+    if (second === undefined) {
+      if (first === BOM[0]) {
+        return true
+      }
+
+      this.checkBOM = false
+      return true
+    }
+
+    if (third === undefined) {
+      if (first === BOM[0] && second === BOM[1]) {
+        return true
+      }
+
+      this.checkBOM = false
+      return false
+    }
+
+    if (first === BOM[0] && second === BOM[1] && third === BOM[2]) {
+      this.discardLeadingBytes(3)
+    }
+
+    this.checkBOM = false
+    return !this.hasCurrentByte()
   }
 }
 
@@ -34448,6 +35451,7 @@ const { isNetworkError } = __nccwpck_require__(2583)
 const { delay } = __nccwpck_require__(8865)
 const { kEnumerableProperty } = __nccwpck_require__(3983)
 const { environmentSettingsObject } = __nccwpck_require__(1310)
+const { getGlobalDispatcher } = __nccwpck_require__(1892)
 
 let experimentalWarned = false
 
@@ -34729,6 +35733,7 @@ class EventSource extends EventTarget {
 
       const eventSourceStream = new EventSourceStream({
         eventSourceSettings: this.#state,
+        maxEventSize: this.#dispatcher.eventSourceOptions?.maxEventSize,
         push: (event) => {
           this.dispatchEvent(createFastMessageEvent(
             event.type,
@@ -34907,7 +35912,8 @@ webidl.converters.EventSourceInitDict = webidl.dictionaryConverter([
   },
   {
     key: 'dispatcher', // undici only
-    converter: webidl.converters.any
+    converter: webidl.converters.any,
+    defaultValue: () => getGlobalDispatcher()
   }
 ])
 
@@ -40014,8 +41020,10 @@ async function httpNetworkFetch (
   // 19. Run these steps in parallel:
 
   //    1. Run these steps, but abort when fetchParams is canceled:
-  fetchParams.controller.onAborted = onAborted
-  fetchParams.controller.on('terminated', onAborted)
+  if (!fetchParams.controller.resume) {
+    fetchParams.controller.on('terminated', onAborted)
+  }
+
   fetchParams.controller.resume = async () => {
     // 1. While true
     while (true) {
@@ -40184,8 +41192,6 @@ async function httpNetworkFetch (
           }
           location = headersList.get('location', true)
 
-          this.body = new Readable({ read: resume })
-
           const decoders = []
 
           const willFollow = location && request.redirect === 'follow' &&
@@ -40203,7 +41209,7 @@ async function httpNetworkFetch (
             // CVE fix similar to urllib3 (GHSA-gm62-xv2j-4w53) and curl (CVE-2022-32206).
             const maxContentEncodings = 5
             if (codings.length > maxContentEncodings) {
-              reject(new Error(`too many content-encodings in response: ${codings.length}, maximum allowed is ${maxContentEncodings}`))
+              this.abort(new Error(`too many content-encodings in response: ${codings.length}, maximum allowed is ${maxContentEncodings}`))
               return true
             }
 
@@ -40235,6 +41241,8 @@ async function httpNetworkFetch (
               }
             }
           }
+
+          this.body = new Readable({ read: resume })
 
           const onError = this.onError.bind(this)
 
@@ -40280,10 +41288,6 @@ async function httpNetworkFetch (
         onComplete () {
           if (this.abort) {
             fetchParams.controller.off('terminated', this.abort)
-          }
-
-          if (fetchParams.controller.onAborted) {
-            fetchParams.controller.off('terminated', fetchParams.controller.onAborted)
           }
 
           fetchParams.controller.ended = true
@@ -45712,7 +46716,7 @@ function establishWebSocketConnection (url, protocols, client, ws, onEstablish, 
         // is specified, the server needs to include the same field and one of
         // the selected subprotocol values in its response for the connection to
         // be established.
-        if (!requestProtocols.includes(secProtocol)) {
+        if (requestProtocols === null || !requestProtocols.includes(secProtocol)) {
           failWebsocketConnection(ws, 'Protocol was not set in the opening handshake.')
           return
         }
@@ -46477,7 +47481,12 @@ class PerMessageDeflate {
 
         if (this.#maxPayloadSize > 0 && this.#inflate[kLength] > this.#maxPayloadSize) {
           callback(new MessageSizeExceededError())
+          // The inflater may still hold buffered input that can emit a late
+          // zlib error. Remove the data listener, then deterministically stop
+          // the stream so a subsequent 'error' cannot fire without a listener
+          // (which would terminate the process as an unhandled error event).
           this.#inflate.removeAllListeners()
+          this.#inflate.destroy()
           this.#inflate = null
           return
         }
@@ -46771,6 +47780,20 @@ class ByteParser extends Writable {
         if (isControlFrame(this.#info.opcode)) {
           this.#loop = this.parseControlFrame(body)
           this.#state = parserStates.INFO
+
+          // If the automatic PONG/CLOSE reply filled the socket's write buffer,
+          // stop parsing and resume on drain so a PING flood cannot grow the
+          // outbound queue without bound.
+          const socket = this.ws[kResponse].socket
+          if (this.#loop && socket.writableNeedDrain) {
+            this.#loop = false
+            socket.once('drain', () => {
+              if (this.destroyed) return
+              this.#loop = true
+              this.run(callback)
+            })
+            return
+          }
         } else {
           if (!this.#info.compressed) {
             if (!this.writeFragments(body)) {
@@ -48430,7 +49453,7 @@ module.exports = require("zlib");
 
 /***/ }),
 
-/***/ 1196:
+/***/ 4760:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
@@ -48438,68 +49461,120 @@ module.exports = require("zlib");
 
 var GetIntrinsic = __nccwpck_require__(4538);
 
-var $Array = GetIntrinsic('%Array%');
+var $ArrayPrototype = GetIntrinsic('%Array.prototype%');
+var $RangeError = __nccwpck_require__(4415);
+var $SyntaxError = __nccwpck_require__(5474);
+var $TypeError = __nccwpck_require__(6361);
+var isInteger = __nccwpck_require__(9558);
+var MAX_ARRAY_LENGTH = __nccwpck_require__(2650);
+var $setProto = __nccwpck_require__(4149);
+
+// https://262.ecma-international.org/12.0/#sec-arraycreate
+
+module.exports = function ArrayCreate(length) {
+	if (!isInteger(length) || length < 0) {
+		throw new $TypeError('Assertion failed: `length` must be an integer Number >= 0');
+	}
+	if (length > MAX_ARRAY_LENGTH) {
+		throw new $RangeError('length is greater than (2**32 - 1)');
+	}
+	var proto = arguments.length > 1 ? arguments[1] : $ArrayPrototype;
+	var A = []; // steps 3, 5
+	if (proto !== $ArrayPrototype) { // step 4
+		if (!$setProto) {
+			throw new $SyntaxError('ArrayCreate: a `proto` argument that is not `Array.prototype` is not supported in an environment that does not support setting the [[Prototype]]');
+		}
+		$setProto(A, proto);
+	}
+	if (length !== 0) { // bypasses the need for step 6
+		A.length = length;
+	}
+	/* step 6, the above as a shortcut for the below
+	OrdinaryDefineOwnProperty(A, 'length', {
+		'[[Configurable]]': false,
+		'[[Enumerable]]': false,
+		'[[Value]]': length,
+		'[[Writable]]': true
+	});
+	*/
+	return A;
+};
+
+
+/***/ }),
+
+/***/ 8248:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var GetIntrinsic = __nccwpck_require__(4538);
+
 var $species = GetIntrinsic('%Symbol.species%', true);
-var $TypeError = GetIntrinsic('%TypeError%');
+var $TypeError = __nccwpck_require__(6361);
+var isInteger = __nccwpck_require__(9558);
+var isObject = __nccwpck_require__(9525);
 
-var Get = __nccwpck_require__(381);
-var IsArray = __nccwpck_require__(233);
-var IsConstructor = __nccwpck_require__(1761);
-var IsInteger = __nccwpck_require__(6064);
-var Type = __nccwpck_require__(8454);
+var ArrayCreate = __nccwpck_require__(4760);
+var Get = __nccwpck_require__(9617);
+var IsArray = __nccwpck_require__(9771);
+var IsConstructor = __nccwpck_require__(3596);
 
-// https://ecma-international.org/ecma-262/6.0/#sec-arrayspeciescreate
+// https://262.ecma-international.org/12.0/#sec-arrayspeciescreate
 
 module.exports = function ArraySpeciesCreate(originalArray, length) {
-	if (!IsInteger(length) || length < 0) {
+	if (!isInteger(length) || length < 0) {
 		throw new $TypeError('Assertion failed: length must be an integer >= 0');
 	}
-	var len = length === 0 ? 0 : length;
-	var C;
+
 	var isArray = IsArray(originalArray);
-	if (isArray) {
-		C = Get(originalArray, 'constructor');
-		// TODO: figure out how to make a cross-realm normal Array, a same-realm Array
-		// if (IsConstructor(C)) {
-		// 	if C is another realm's Array, C = undefined
-		// 	Object.getPrototypeOf(Object.getPrototypeOf(Object.getPrototypeOf(Array))) === null ?
-		// }
-		if ($species && Type(C) === 'Object') {
-			C = Get(C, $species);
-			if (C === null) {
-				C = void 0;
-			}
+	if (!isArray) {
+		return ArrayCreate(length);
+	}
+
+	var C = Get(originalArray, 'constructor');
+	// TODO: figure out how to make a cross-realm normal Array, a same-realm Array
+	// if (IsConstructor(C)) {
+	// 	if C is another realm's Array, C = undefined
+	// 	Object.getPrototypeOf(Object.getPrototypeOf(Object.getPrototypeOf(Array))) === null ?
+	// }
+	if ($species && isObject(C)) {
+		C = Get(C, $species);
+		if (C === null) {
+			C = void 0;
 		}
 	}
+
 	if (typeof C === 'undefined') {
-		return $Array(len);
+		return ArrayCreate(length);
 	}
 	if (!IsConstructor(C)) {
 		throw new $TypeError('C must be a constructor');
 	}
-	return new C(len); // Construct(C, len);
+	return new C(length); // Construct(C, length);
 };
 
 
 
 /***/ }),
 
-/***/ 7008:
+/***/ 6534:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
 
 var GetIntrinsic = __nccwpck_require__(4538);
-var callBound = __nccwpck_require__(8803);
+var callBound = __nccwpck_require__(1785);
 
-var $TypeError = GetIntrinsic('%TypeError%');
+var $TypeError = __nccwpck_require__(6361);
 
-var IsArray = __nccwpck_require__(233);
+var IsArray = __nccwpck_require__(9771);
 
-var $apply = GetIntrinsic('%Reflect.apply%', true) || callBound('%Function.prototype.apply%');
+var $apply = GetIntrinsic('%Reflect.apply%', true) || callBound('Function.prototype.apply');
 
-// https://ecma-international.org/ecma-262/6.0/#sec-call
+// https://262.ecma-international.org/6.0/#sec-call
 
 module.exports = function Call(F, V) {
 	var argumentsList = arguments.length > 2 ? arguments[2] : [];
@@ -48512,134 +49587,101 @@ module.exports = function Call(F, V) {
 
 /***/ }),
 
-/***/ 4165:
+/***/ 1865:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
 
-var GetIntrinsic = __nccwpck_require__(4538);
+var $TypeError = __nccwpck_require__(6361);
+var isObject = __nccwpck_require__(9525);
 
-var $TypeError = GetIntrinsic('%TypeError%');
+var isPropertyKey = __nccwpck_require__(6656);
+var OrdinaryDefineOwnProperty = __nccwpck_require__(6166);
 
-var DefineOwnProperty = __nccwpck_require__(2705);
-
-var FromPropertyDescriptor = __nccwpck_require__(8122);
-var OrdinaryGetOwnProperty = __nccwpck_require__(8782);
-var IsDataDescriptor = __nccwpck_require__(8819);
-var IsExtensible = __nccwpck_require__(5062);
-var IsPropertyKey = __nccwpck_require__(4581);
-var SameValue = __nccwpck_require__(3476);
-var Type = __nccwpck_require__(8454);
-
-// https://ecma-international.org/ecma-262/6.0/#sec-createdataproperty
+// https://262.ecma-international.org/6.0/#sec-createdataproperty
 
 module.exports = function CreateDataProperty(O, P, V) {
-	if (Type(O) !== 'Object') {
+	if (!isObject(O)) {
 		throw new $TypeError('Assertion failed: Type(O) is not Object');
 	}
-	if (!IsPropertyKey(P)) {
-		throw new $TypeError('Assertion failed: IsPropertyKey(P) is not true');
+	if (!isPropertyKey(P)) {
+		throw new $TypeError('Assertion failed: P is not a Property Key');
 	}
-	var oldDesc = OrdinaryGetOwnProperty(O, P);
-	var extensible = !oldDesc || IsExtensible(O);
-	var nonConfigurable = oldDesc && !oldDesc['[[Configurable]]'];
-	if (nonConfigurable || !extensible) {
-		return false;
-	}
-	return DefineOwnProperty(
-		IsDataDescriptor,
-		SameValue,
-		FromPropertyDescriptor,
-		O,
-		P,
-		{
-			'[[Configurable]]': true,
-			'[[Enumerable]]': true,
-			'[[Value]]': V,
-			'[[Writable]]': true
-		}
-	);
+	var newDesc = {
+		'[[Configurable]]': true,
+		'[[Enumerable]]': true,
+		'[[Value]]': V,
+		'[[Writable]]': true
+	};
+	return OrdinaryDefineOwnProperty(O, P, newDesc);
 };
 
 
 /***/ }),
 
-/***/ 8559:
+/***/ 9924:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
 
-var GetIntrinsic = __nccwpck_require__(4538);
+var $TypeError = __nccwpck_require__(6361);
+var isObject = __nccwpck_require__(9525);
 
-var $TypeError = GetIntrinsic('%TypeError%');
+var CreateDataProperty = __nccwpck_require__(1865);
 
-var CreateDataProperty = __nccwpck_require__(4165);
-var IsPropertyKey = __nccwpck_require__(4581);
-var Type = __nccwpck_require__(8454);
+var isPropertyKey = __nccwpck_require__(6656);
 
-// // https://ecma-international.org/ecma-262/6.0/#sec-createdatapropertyorthrow
+// // https://262.ecma-international.org/14.0/#sec-createdatapropertyorthrow
 
 module.exports = function CreateDataPropertyOrThrow(O, P, V) {
-	if (Type(O) !== 'Object') {
+	if (!isObject(O)) {
 		throw new $TypeError('Assertion failed: Type(O) is not Object');
 	}
-	if (!IsPropertyKey(P)) {
-		throw new $TypeError('Assertion failed: IsPropertyKey(P) is not true');
+	if (!isPropertyKey(P)) {
+		throw new $TypeError('Assertion failed: P is not a Property Key');
 	}
 	var success = CreateDataProperty(O, P, V);
 	if (!success) {
 		throw new $TypeError('unable to create data property');
 	}
-	return success;
 };
 
 
 /***/ }),
 
-/***/ 6472:
+/***/ 3604:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
 
-var GetIntrinsic = __nccwpck_require__(4538);
+var $TypeError = __nccwpck_require__(6361);
+var isObject = __nccwpck_require__(9525);
 
-var $TypeError = GetIntrinsic('%TypeError%');
-
-var isPropertyDescriptor = __nccwpck_require__(6609);
+var isPropertyDescriptor = __nccwpck_require__(9148);
 var DefineOwnProperty = __nccwpck_require__(2705);
 
-var FromPropertyDescriptor = __nccwpck_require__(8122);
-var IsAccessorDescriptor = __nccwpck_require__(7702);
-var IsDataDescriptor = __nccwpck_require__(8819);
-var IsPropertyKey = __nccwpck_require__(4581);
-var SameValue = __nccwpck_require__(3476);
-var ToPropertyDescriptor = __nccwpck_require__(1497);
-var Type = __nccwpck_require__(8454);
+var FromPropertyDescriptor = __nccwpck_require__(6589);
+var IsDataDescriptor = __nccwpck_require__(1197);
+var isPropertyKey = __nccwpck_require__(6656);
+var SameValue = __nccwpck_require__(2663);
+var ToPropertyDescriptor = __nccwpck_require__(2841);
 
-// https://ecma-international.org/ecma-262/6.0/#sec-definepropertyorthrow
+// https://262.ecma-international.org/6.0/#sec-definepropertyorthrow
 
 module.exports = function DefinePropertyOrThrow(O, P, desc) {
-	if (Type(O) !== 'Object') {
+	if (!isObject(O)) {
 		throw new $TypeError('Assertion failed: Type(O) is not Object');
 	}
 
-	if (!IsPropertyKey(P)) {
-		throw new $TypeError('Assertion failed: IsPropertyKey(P) is not true');
+	if (!isPropertyKey(P)) {
+		throw new $TypeError('Assertion failed: P is not a Property Key');
 	}
 
-	var Desc = isPropertyDescriptor({
-		Type: Type,
-		IsDataDescriptor: IsDataDescriptor,
-		IsAccessorDescriptor: IsAccessorDescriptor
-	}, desc) ? desc : ToPropertyDescriptor(desc);
-	if (!isPropertyDescriptor({
-		Type: Type,
-		IsDataDescriptor: IsDataDescriptor,
-		IsAccessorDescriptor: IsAccessorDescriptor
-	}, Desc)) {
+	var Desc = isPropertyDescriptor(desc) ? desc : ToPropertyDescriptor(desc);
+	if (!isPropertyDescriptor(Desc)) {
 		throw new $TypeError('Assertion failed: Desc is not a valid Property Descriptor');
 	}
 
@@ -48656,29 +49698,26 @@ module.exports = function DefinePropertyOrThrow(O, P, desc) {
 
 /***/ }),
 
-/***/ 2459:
+/***/ 1932:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
 
-var GetIntrinsic = __nccwpck_require__(4538);
+var $TypeError = __nccwpck_require__(6361);
 
-var $TypeError = GetIntrinsic('%TypeError%');
+var MAX_SAFE_INTEGER = __nccwpck_require__(1798);
 
-var MAX_SAFE_INTEGER = __nccwpck_require__(7176);
-
-var Call = __nccwpck_require__(7008);
-var CreateDataPropertyOrThrow = __nccwpck_require__(8559);
-var Get = __nccwpck_require__(381);
-var HasProperty = __nccwpck_require__(518);
-var IsArray = __nccwpck_require__(233);
-var LengthOfArrayLike = __nccwpck_require__(8553);
-var ToString = __nccwpck_require__(6592);
+var Call = __nccwpck_require__(6534);
+var CreateDataPropertyOrThrow = __nccwpck_require__(9924);
+var Get = __nccwpck_require__(9617);
+var HasProperty = __nccwpck_require__(3930);
+var IsArray = __nccwpck_require__(9771);
+var LengthOfArrayLike = __nccwpck_require__(7857);
+var ToString = __nccwpck_require__(3144);
 
 // https://262.ecma-international.org/11.0/#sec-flattenintoarray
 
-// eslint-disable-next-line max-params
 module.exports = function FlattenIntoArray(target, source, sourceLen, start, depth) {
 	var mapperFunction;
 	if (arguments.length > 5) {
@@ -48722,22 +49761,22 @@ module.exports = function FlattenIntoArray(target, source, sourceLen, start, dep
 
 /***/ }),
 
-/***/ 8122:
+/***/ 6589:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
 
-var assertRecord = __nccwpck_require__(986);
+var $TypeError = __nccwpck_require__(6361);
+
+var isPropertyDescriptor = __nccwpck_require__(9148);
 var fromPropertyDescriptor = __nccwpck_require__(8405);
 
-var Type = __nccwpck_require__(8454);
-
-// https://ecma-international.org/ecma-262/6.0/#sec-frompropertydescriptor
+// https://262.ecma-international.org/6.0/#sec-frompropertydescriptor
 
 module.exports = function FromPropertyDescriptor(Desc) {
-	if (typeof Desc !== 'undefined') {
-		assertRecord(Type, 'Property Descriptor', 'Desc', Desc);
+	if (typeof Desc !== 'undefined' && !isPropertyDescriptor(Desc)) {
+		throw new $TypeError('Assertion failed: `Desc` must be a Property Descriptor');
 	}
 
 	return fromPropertyDescriptor(Desc);
@@ -48746,31 +49785,30 @@ module.exports = function FromPropertyDescriptor(Desc) {
 
 /***/ }),
 
-/***/ 381:
+/***/ 9617:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
 
-var GetIntrinsic = __nccwpck_require__(4538);
-
-var $TypeError = GetIntrinsic('%TypeError%');
+var $TypeError = __nccwpck_require__(6361);
 
 var inspect = __nccwpck_require__(504);
 
-var IsPropertyKey = __nccwpck_require__(4581);
-var Type = __nccwpck_require__(8454);
+var isPropertyKey = __nccwpck_require__(6656);
 
-// https://ecma-international.org/ecma-262/6.0/#sec-get-o-p
+var isObject = __nccwpck_require__(9525);
+
+// https://262.ecma-international.org/6.0/#sec-get-o-p
 
 module.exports = function Get(O, P) {
 	// 7.3.1.1
-	if (Type(O) !== 'Object') {
+	if (!isObject(O)) {
 		throw new $TypeError('Assertion failed: Type(O) is not Object');
 	}
 	// 7.3.1.2
-	if (!IsPropertyKey(P)) {
-		throw new $TypeError('Assertion failed: IsPropertyKey(P) is not true, got ' + inspect(P));
+	if (!isPropertyKey(P)) {
+		throw new $TypeError('Assertion failed: P is not a Property Key, got ' + inspect(P));
 	}
 	// 7.3.1.3
 	return O[P];
@@ -48779,26 +49817,24 @@ module.exports = function Get(O, P) {
 
 /***/ }),
 
-/***/ 518:
+/***/ 3930:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
 
-var GetIntrinsic = __nccwpck_require__(4538);
+var $TypeError = __nccwpck_require__(6361);
+var isObject = __nccwpck_require__(9525);
 
-var $TypeError = GetIntrinsic('%TypeError%');
+var isPropertyKey = __nccwpck_require__(6656);
 
-var IsPropertyKey = __nccwpck_require__(4581);
-var Type = __nccwpck_require__(8454);
-
-// https://ecma-international.org/ecma-262/6.0/#sec-hasproperty
+// https://262.ecma-international.org/6.0/#sec-hasproperty
 
 module.exports = function HasProperty(O, P) {
-	if (Type(O) !== 'Object') {
+	if (!isObject(O)) {
 		throw new $TypeError('Assertion failed: `O` must be an Object');
 	}
-	if (!IsPropertyKey(P)) {
+	if (!isPropertyKey(P)) {
 		throw new $TypeError('Assertion failed: `P` must be a Property Key');
 	}
 	return P in O;
@@ -48807,28 +49843,30 @@ module.exports = function HasProperty(O, P) {
 
 /***/ }),
 
-/***/ 7702:
+/***/ 719:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
 
-var has = __nccwpck_require__(6339);
+var $TypeError = __nccwpck_require__(6361);
 
-var assertRecord = __nccwpck_require__(986);
+var hasOwn = __nccwpck_require__(2157);
 
-var Type = __nccwpck_require__(8454);
+var isPropertyDescriptor = __nccwpck_require__(9148);
 
-// https://ecma-international.org/ecma-262/6.0/#sec-isaccessordescriptor
+// https://262.ecma-international.org/5.1/#sec-8.10.1
 
 module.exports = function IsAccessorDescriptor(Desc) {
 	if (typeof Desc === 'undefined') {
 		return false;
 	}
 
-	assertRecord(Type, 'Property Descriptor', 'Desc', Desc);
+	if (!isPropertyDescriptor(Desc)) {
+		throw new $TypeError('Assertion failed: `Desc` must be a Property Descriptor');
+	}
 
-	if (!has(Desc, '[[Get]]') && !has(Desc, '[[Set]]')) {
+	if (!hasOwn(Desc, '[[Get]]') && !hasOwn(Desc, '[[Set]]')) {
 		return false;
 	}
 
@@ -48838,19 +49876,19 @@ module.exports = function IsAccessorDescriptor(Desc) {
 
 /***/ }),
 
-/***/ 233:
+/***/ 9771:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
 
-// https://ecma-international.org/ecma-262/6.0/#sec-isarray
+// https://262.ecma-international.org/6.0/#sec-isarray
 module.exports = __nccwpck_require__(1394);
 
 
 /***/ }),
 
-/***/ 5106:
+/***/ 2800:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
@@ -48863,7 +49901,7 @@ module.exports = __nccwpck_require__(4615);
 
 /***/ }),
 
-/***/ 1761:
+/***/ 3596:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
@@ -48873,7 +49911,7 @@ var GetIntrinsic = __nccwpck_require__(5266);
 
 var $construct = GetIntrinsic('%Reflect.construct%', true);
 
-var DefinePropertyOrThrow = __nccwpck_require__(6472);
+var DefinePropertyOrThrow = __nccwpck_require__(3604);
 try {
 	DefinePropertyOrThrow({}, '', { '[[Get]]': function () {} });
 } catch (e) {
@@ -48881,7 +49919,7 @@ try {
 	DefinePropertyOrThrow = null;
 }
 
-// https://ecma-international.org/ecma-262/6.0/#sec-isconstructor
+// https://262.ecma-international.org/6.0/#sec-isconstructor
 
 if (DefinePropertyOrThrow && $construct) {
 	var isConstructorMarker = {};
@@ -48911,28 +49949,30 @@ if (DefinePropertyOrThrow && $construct) {
 
 /***/ }),
 
-/***/ 8819:
+/***/ 1197:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
 
-var has = __nccwpck_require__(6339);
+var $TypeError = __nccwpck_require__(6361);
 
-var assertRecord = __nccwpck_require__(986);
+var hasOwn = __nccwpck_require__(2157);
 
-var Type = __nccwpck_require__(8454);
+var isPropertyDescriptor = __nccwpck_require__(9148);
 
-// https://ecma-international.org/ecma-262/6.0/#sec-isdatadescriptor
+// https://262.ecma-international.org/5.1/#sec-8.10.2
 
 module.exports = function IsDataDescriptor(Desc) {
 	if (typeof Desc === 'undefined') {
 		return false;
 	}
 
-	assertRecord(Type, 'Property Descriptor', 'Desc', Desc);
+	if (!isPropertyDescriptor(Desc)) {
+		throw new $TypeError('Assertion failed: `Desc` must be a Property Descriptor');
+	}
 
-	if (!has(Desc, '[[Value]]') && !has(Desc, '[[Writable]]')) {
+	if (!hasOwn(Desc, '[[Value]]') && !hasOwn(Desc, '[[Writable]]')) {
 		return false;
 	}
 
@@ -48942,7 +49982,7 @@ module.exports = function IsDataDescriptor(Desc) {
 
 /***/ }),
 
-/***/ 5062:
+/***/ 1302:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
@@ -48955,7 +49995,7 @@ var $isExtensible = GetIntrinsic('%Object.isExtensible%', true);
 
 var isPrimitive = __nccwpck_require__(6294);
 
-// https://ecma-international.org/ecma-262/6.0/#sec-isextensible-o
+// https://262.ecma-international.org/6.0/#sec-isextensible-o
 
 module.exports = $preventExtensions
 	? function IsExtensible(obj) {
@@ -48968,96 +50008,56 @@ module.exports = $preventExtensions
 
 /***/ }),
 
-/***/ 6064:
+/***/ 643:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
 
-var abs = __nccwpck_require__(1958);
-var floor = __nccwpck_require__(7937);
+var $TypeError = __nccwpck_require__(6361);
 
-var $isNaN = __nccwpck_require__(5893);
-var $isFinite = __nccwpck_require__(7886);
+var IsAccessorDescriptor = __nccwpck_require__(719);
+var IsDataDescriptor = __nccwpck_require__(1197);
 
-// https://ecma-international.org/ecma-262/6.0/#sec-isinteger
+var isPropertyDescriptor = __nccwpck_require__(9148);
 
-module.exports = function IsInteger(argument) {
-	if (typeof argument !== 'number' || $isNaN(argument) || !$isFinite(argument)) {
+// https://262.ecma-international.org/6.0/#sec-isgenericdescriptor
+
+module.exports = function IsGenericDescriptor(Desc) {
+	if (typeof Desc === 'undefined') {
 		return false;
 	}
-	var absValue = abs(argument);
-	return floor(absValue) === absValue;
+
+	if (!isPropertyDescriptor(Desc)) {
+		throw new $TypeError('Assertion failed: `Desc` must be a Property Descriptor');
+	}
+
+	if (!IsAccessorDescriptor(Desc) && !IsDataDescriptor(Desc)) {
+		return true;
+	}
+
+	return false;
 };
 
 
 /***/ }),
 
-/***/ 4581:
-/***/ ((module) => {
-
-"use strict";
-
-
-// https://ecma-international.org/ecma-262/6.0/#sec-ispropertykey
-
-module.exports = function IsPropertyKey(argument) {
-	return typeof argument === 'string' || typeof argument === 'symbol';
-};
-
-
-/***/ }),
-
-/***/ 456:
+/***/ 7857:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
 
-var GetIntrinsic = __nccwpck_require__(4538);
+var $TypeError = __nccwpck_require__(6361);
+var isObject = __nccwpck_require__(9525);
 
-var $match = GetIntrinsic('%Symbol.match%', true);
-
-var hasRegExpMatcher = __nccwpck_require__(6403);
-
-var ToBoolean = __nccwpck_require__(5103);
-
-// https://ecma-international.org/ecma-262/6.0/#sec-isregexp
-
-module.exports = function IsRegExp(argument) {
-	if (!argument || typeof argument !== 'object') {
-		return false;
-	}
-	if ($match) {
-		var isRegExp = argument[$match];
-		if (typeof isRegExp !== 'undefined') {
-			return ToBoolean(isRegExp);
-		}
-	}
-	return hasRegExpMatcher(argument);
-};
-
-
-/***/ }),
-
-/***/ 8553:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-var GetIntrinsic = __nccwpck_require__(4538);
-
-var $TypeError = GetIntrinsic('%TypeError%');
-
-var Get = __nccwpck_require__(381);
-var ToLength = __nccwpck_require__(537);
-var Type = __nccwpck_require__(8454);
+var Get = __nccwpck_require__(9617);
+var ToLength = __nccwpck_require__(2029);
 
 // https://262.ecma-international.org/11.0/#sec-lengthofarraylike
 
 module.exports = function LengthOfArrayLike(obj) {
-	if (Type(obj) !== 'Object') {
+	if (!isObject(obj)) {
 		throw new $TypeError('Assertion failed: `obj` must be an Object');
 	}
 	return ToLength(Get(obj, 'length'));
@@ -49068,76 +50068,75 @@ module.exports = function LengthOfArrayLike(obj) {
 
 /***/ }),
 
-/***/ 8782:
+/***/ 6166:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
 
-var GetIntrinsic = __nccwpck_require__(4538);
+var $gOPD = __nccwpck_require__(8501);
+var $SyntaxError = __nccwpck_require__(5474);
+var $TypeError = __nccwpck_require__(6361);
+var isObject = __nccwpck_require__(9525);
 
-var $gOPD = __nccwpck_require__(3850);
-var $TypeError = GetIntrinsic('%TypeError%');
+var isPropertyDescriptor = __nccwpck_require__(9148);
 
-var callBound = __nccwpck_require__(8803);
+var IsAccessorDescriptor = __nccwpck_require__(719);
+var IsExtensible = __nccwpck_require__(1302);
+var isPropertyKey = __nccwpck_require__(6656);
+var ToPropertyDescriptor = __nccwpck_require__(2841);
+var SameValue = __nccwpck_require__(2663);
+var ValidateAndApplyPropertyDescriptor = __nccwpck_require__(6807);
 
-var $isEnumerable = callBound('Object.prototype.propertyIsEnumerable');
+// https://262.ecma-international.org/6.0/#sec-ordinarydefineownproperty
 
-var has = __nccwpck_require__(6339);
-
-var IsArray = __nccwpck_require__(233);
-var IsPropertyKey = __nccwpck_require__(4581);
-var IsRegExp = __nccwpck_require__(456);
-var ToPropertyDescriptor = __nccwpck_require__(1497);
-var Type = __nccwpck_require__(8454);
-
-// https://ecma-international.org/ecma-262/6.0/#sec-ordinarygetownproperty
-
-module.exports = function OrdinaryGetOwnProperty(O, P) {
-	if (Type(O) !== 'Object') {
+module.exports = function OrdinaryDefineOwnProperty(O, P, Desc) {
+	if (!isObject(O)) {
 		throw new $TypeError('Assertion failed: O must be an Object');
 	}
-	if (!IsPropertyKey(P)) {
+	if (!isPropertyKey(P)) {
 		throw new $TypeError('Assertion failed: P must be a Property Key');
 	}
-	if (!has(O, P)) {
-		return void 0;
+	if (!isPropertyDescriptor(Desc)) {
+		throw new $TypeError('Assertion failed: Desc must be a Property Descriptor');
 	}
 	if (!$gOPD) {
-		// ES3 / IE 8 fallback
-		var arrayLength = IsArray(O) && P === 'length';
-		var regexLastIndex = IsRegExp(O) && P === 'lastIndex';
-		return {
-			'[[Configurable]]': !(arrayLength || regexLastIndex),
-			'[[Enumerable]]': $isEnumerable(O, P),
-			'[[Value]]': O[P],
-			'[[Writable]]': true
-		};
+		// ES3/IE 8 fallback
+		if (IsAccessorDescriptor(Desc)) {
+			throw new $SyntaxError('This environment does not support accessor property descriptors.');
+		}
+		var creatingNormalDataProperty = !(P in O)
+			&& Desc['[[Writable]]']
+			&& Desc['[[Enumerable]]']
+			&& Desc['[[Configurable]]']
+			&& '[[Value]]' in Desc;
+		var settingExistingDataProperty = (P in O)
+			&& (!('[[Configurable]]' in Desc) || Desc['[[Configurable]]'])
+			&& (!('[[Enumerable]]' in Desc) || Desc['[[Enumerable]]'])
+			&& (!('[[Writable]]' in Desc) || Desc['[[Writable]]'])
+			&& '[[Value]]' in Desc;
+		if (creatingNormalDataProperty || settingExistingDataProperty) {
+			O[P] = Desc['[[Value]]']; // eslint-disable-line no-param-reassign
+			return SameValue(O[P], Desc['[[Value]]']);
+		}
+		throw new $SyntaxError('This environment does not support defining non-writable, non-enumerable, or non-configurable properties');
 	}
-	return ToPropertyDescriptor($gOPD(O, P));
+	var desc = $gOPD(O, P);
+	var current = desc && ToPropertyDescriptor(desc);
+	var extensible = IsExtensible(O);
+	return ValidateAndApplyPropertyDescriptor(O, P, extensible, Desc, current);
 };
 
 
 /***/ }),
 
-/***/ 6581:
+/***/ 2663:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
 
-module.exports = __nccwpck_require__(3300);
-
-
-/***/ }),
-
-/***/ 3476:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-var $isNaN = __nccwpck_require__(5893);
+var $isNaN = __nccwpck_require__(7661);
 
 // http://262.ecma-international.org/5.1/#sec-9.12
 
@@ -49152,7 +50151,57 @@ module.exports = function SameValue(x, y) {
 
 /***/ }),
 
-/***/ 5103:
+/***/ 7691:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var GetIntrinsic = __nccwpck_require__(4538);
+
+var $RegExp = GetIntrinsic('%RegExp%');
+var $TypeError = __nccwpck_require__(6361);
+var $parseInteger = GetIntrinsic('%parseInt%');
+
+var callBound = __nccwpck_require__(1785);
+var regexTester = __nccwpck_require__(3055);
+
+var $strSlice = callBound('String.prototype.slice');
+var isBinary = regexTester(/^0b[01]+$/i);
+var isOctal = regexTester(/^0o[0-7]+$/i);
+var isInvalidHexLiteral = regexTester(/^[-+]0x[0-9a-f]+$/i);
+var nonWS = ['\u0085', '\u200b', '\ufffe'].join('');
+var nonWSregex = new $RegExp('[' + nonWS + ']', 'g');
+var hasNonWS = regexTester(nonWSregex);
+
+var $trim = __nccwpck_require__(6332);
+
+// https://262.ecma-international.org/13.0/#sec-stringtonumber
+
+module.exports = function StringToNumber(argument) {
+	if (typeof argument !== 'string') {
+		throw new $TypeError('Assertion failed: `argument` is not a String');
+	}
+	if (isBinary(argument)) {
+		return +$parseInteger($strSlice(argument, 2), 2);
+	}
+	if (isOctal(argument)) {
+		return +$parseInteger($strSlice(argument, 2), 8);
+	}
+	if (hasNonWS(argument) || isInvalidHexLiteral(argument)) {
+		return NaN;
+	}
+	var trimmed = $trim(argument);
+	if (trimmed !== argument) {
+		return StringToNumber(trimmed);
+	}
+	return +argument;
+};
+
+
+/***/ }),
+
+/***/ 199:
 /***/ ((module) => {
 
 "use strict";
@@ -49165,41 +50214,44 @@ module.exports = function ToBoolean(value) { return !!value; };
 
 /***/ }),
 
-/***/ 2722:
+/***/ 5928:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
 
-var ES5ToInteger = __nccwpck_require__(8506);
+var ToNumber = __nccwpck_require__(686);
+var truncate = __nccwpck_require__(5301);
 
-var ToNumber = __nccwpck_require__(5389);
+var $isNaN = __nccwpck_require__(7661);
+var $isFinite = __nccwpck_require__(2851);
 
-// https://262.ecma-international.org/11.0/#sec-tointeger
+// https://262.ecma-international.org/14.0/#sec-tointegerorinfinity
 
-module.exports = function ToInteger(value) {
+module.exports = function ToIntegerOrInfinity(value) {
 	var number = ToNumber(value);
-	if (number !== 0) {
-		number = ES5ToInteger(number);
-	}
-	return number === 0 ? 0 : number;
+	if ($isNaN(number) || number === 0) { return 0; }
+	if (!$isFinite(number)) { return number; }
+	return truncate(number);
 };
 
 
 /***/ }),
 
-/***/ 537:
+/***/ 2029:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
 
-var MAX_SAFE_INTEGER = __nccwpck_require__(7176);
+var MAX_SAFE_INTEGER = __nccwpck_require__(1798);
 
-var ToInteger = __nccwpck_require__(2722);
+var ToIntegerOrInfinity = __nccwpck_require__(5928);
+
+// https://262.ecma-international.org/12.0/#sec-tolength
 
 module.exports = function ToLength(argument) {
-	var len = ToInteger(argument);
+	var len = ToIntegerOrInfinity(argument);
 	if (len <= 0) { return 0; } // includes converting -0 to +0
 	if (len > MAX_SAFE_INTEGER) { return MAX_SAFE_INTEGER; }
 	return len;
@@ -49208,7 +50260,7 @@ module.exports = function ToLength(argument) {
 
 /***/ }),
 
-/***/ 5389:
+/***/ 686:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
@@ -49216,39 +50268,14 @@ module.exports = function ToLength(argument) {
 
 var GetIntrinsic = __nccwpck_require__(4538);
 
-var $TypeError = GetIntrinsic('%TypeError%');
+var $TypeError = __nccwpck_require__(6361);
 var $Number = GetIntrinsic('%Number%');
-var $RegExp = GetIntrinsic('%RegExp%');
-var $parseInteger = GetIntrinsic('%parseInt%');
-
-var callBound = __nccwpck_require__(8803);
-var regexTester = __nccwpck_require__(4096);
 var isPrimitive = __nccwpck_require__(6294);
 
-var $strSlice = callBound('String.prototype.slice');
-var isBinary = regexTester(/^0b[01]+$/i);
-var isOctal = regexTester(/^0o[0-7]+$/i);
-var isInvalidHexLiteral = regexTester(/^[-+]0x[0-9a-f]+$/i);
-var nonWS = ['\u0085', '\u200b', '\ufffe'].join('');
-var nonWSregex = new $RegExp('[' + nonWS + ']', 'g');
-var hasNonWS = regexTester(nonWSregex);
+var ToPrimitive = __nccwpck_require__(6523);
+var StringToNumber = __nccwpck_require__(7691);
 
-// whitespace from: https://es5.github.io/#x15.5.4.20
-// implementation from https://github.com/es-shims/es5-shim/blob/v3.4.0/es5-shim.js#L1304-L1324
-var ws = [
-	'\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003',
-	'\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028',
-	'\u2029\uFEFF'
-].join('');
-var trimRegex = new RegExp('(^[' + ws + ']+)|([' + ws + ']+$)', 'g');
-var $replace = callBound('String.prototype.replace');
-var $trim = function (value) {
-	return $replace(value, trimRegex, '');
-};
-
-var ToPrimitive = __nccwpck_require__(6901);
-
-// https://ecma-international.org/ecma-262/6.0/#sec-tonumber
+// https://262.ecma-international.org/13.0/#sec-tonumber
 
 module.exports = function ToNumber(argument) {
 	var value = isPrimitive(argument) ? argument : ToPrimitive(argument, $Number);
@@ -49259,48 +50286,28 @@ module.exports = function ToNumber(argument) {
 		throw new $TypeError('Conversion from \'BigInt\' to \'number\' is not allowed.');
 	}
 	if (typeof value === 'string') {
-		if (isBinary(value)) {
-			return ToNumber($parseInteger($strSlice(value, 2), 2));
-		} else if (isOctal(value)) {
-			return ToNumber($parseInteger($strSlice(value, 2), 8));
-		} else if (hasNonWS(value) || isInvalidHexLiteral(value)) {
-			return NaN;
-		}
-		var trimmed = $trim(value);
-		if (trimmed !== value) {
-			return ToNumber(trimmed);
-		}
-
+		return StringToNumber(value);
 	}
-	return $Number(value);
+	return +value;
 };
 
 
 /***/ }),
 
-/***/ 805:
+/***/ 4823:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
 
-var GetIntrinsic = __nccwpck_require__(4538);
+// https://262.ecma-international.org/6.0/#sec-toobject
 
-var $Object = GetIntrinsic('%Object%');
-
-var RequireObjectCoercible = __nccwpck_require__(6581);
-
-// https://ecma-international.org/ecma-262/6.0/#sec-toobject
-
-module.exports = function ToObject(value) {
-	RequireObjectCoercible(value);
-	return $Object(value);
-};
+module.exports = __nccwpck_require__(5127);
 
 
 /***/ }),
 
-/***/ 6901:
+/***/ 6523:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
@@ -49308,7 +50315,7 @@ module.exports = function ToObject(value) {
 
 var toPrimitive = __nccwpck_require__(9464);
 
-// https://ecma-international.org/ecma-262/6.0/#sec-toprimitive
+// https://262.ecma-international.org/6.0/#sec-toprimitive
 
 module.exports = function ToPrimitive(input) {
 	if (arguments.length > 1) {
@@ -49320,50 +50327,48 @@ module.exports = function ToPrimitive(input) {
 
 /***/ }),
 
-/***/ 1497:
+/***/ 2841:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
 
-var has = __nccwpck_require__(6339);
+var hasOwn = __nccwpck_require__(2157);
 
-var GetIntrinsic = __nccwpck_require__(4538);
+var $TypeError = __nccwpck_require__(6361);
+var isObject = __nccwpck_require__(9525);
 
-var $TypeError = GetIntrinsic('%TypeError%');
-
-var Type = __nccwpck_require__(8454);
-var ToBoolean = __nccwpck_require__(5103);
-var IsCallable = __nccwpck_require__(5106);
+var IsCallable = __nccwpck_require__(2800);
+var ToBoolean = __nccwpck_require__(199);
 
 // https://262.ecma-international.org/5.1/#sec-8.10.5
 
 module.exports = function ToPropertyDescriptor(Obj) {
-	if (Type(Obj) !== 'Object') {
+	if (!isObject(Obj)) {
 		throw new $TypeError('ToPropertyDescriptor requires an object');
 	}
 
 	var desc = {};
-	if (has(Obj, 'enumerable')) {
+	if (hasOwn(Obj, 'enumerable')) {
 		desc['[[Enumerable]]'] = ToBoolean(Obj.enumerable);
 	}
-	if (has(Obj, 'configurable')) {
+	if (hasOwn(Obj, 'configurable')) {
 		desc['[[Configurable]]'] = ToBoolean(Obj.configurable);
 	}
-	if (has(Obj, 'value')) {
+	if (hasOwn(Obj, 'value')) {
 		desc['[[Value]]'] = Obj.value;
 	}
-	if (has(Obj, 'writable')) {
+	if (hasOwn(Obj, 'writable')) {
 		desc['[[Writable]]'] = ToBoolean(Obj.writable);
 	}
-	if (has(Obj, 'get')) {
+	if (hasOwn(Obj, 'get')) {
 		var getter = Obj.get;
 		if (typeof getter !== 'undefined' && !IsCallable(getter)) {
 			throw new $TypeError('getter must be a function');
 		}
 		desc['[[Get]]'] = getter;
 	}
-	if (has(Obj, 'set')) {
+	if (hasOwn(Obj, 'set')) {
 		var setter = Obj.set;
 		if (typeof setter !== 'undefined' && !IsCallable(setter)) {
 			throw new $TypeError('setter must be a function');
@@ -49371,7 +50376,7 @@ module.exports = function ToPropertyDescriptor(Obj) {
 		desc['[[Set]]'] = setter;
 	}
 
-	if ((has(desc, '[[Get]]') || has(desc, '[[Set]]')) && (has(desc, '[[Value]]') || has(desc, '[[Writable]]'))) {
+	if ((hasOwn(desc, '[[Get]]') || hasOwn(desc, '[[Set]]')) && (hasOwn(desc, '[[Value]]') || hasOwn(desc, '[[Writable]]'))) {
 		throw new $TypeError('Invalid property descriptor. Cannot both specify accessors and a value or writable attribute');
 	}
 	return desc;
@@ -49380,7 +50385,7 @@ module.exports = function ToPropertyDescriptor(Obj) {
 
 /***/ }),
 
-/***/ 6592:
+/***/ 3144:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
@@ -49389,9 +50394,9 @@ module.exports = function ToPropertyDescriptor(Obj) {
 var GetIntrinsic = __nccwpck_require__(4538);
 
 var $String = GetIntrinsic('%String%');
-var $TypeError = GetIntrinsic('%TypeError%');
+var $TypeError = __nccwpck_require__(6361);
 
-// https://ecma-international.org/ecma-262/6.0/#sec-tostring
+// https://262.ecma-international.org/6.0/#sec-tostring
 
 module.exports = function ToString(argument) {
 	if (typeof argument === 'symbol') {
@@ -49403,68 +50408,231 @@ module.exports = function ToString(argument) {
 
 /***/ }),
 
-/***/ 8454:
+/***/ 6807:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
 
-var ES5Type = __nccwpck_require__(9029);
+var $TypeError = __nccwpck_require__(6361);
+var isObject = __nccwpck_require__(9525);
 
-// https://262.ecma-international.org/11.0/#sec-ecmascript-data-types-and-values
+var DefineOwnProperty = __nccwpck_require__(2705);
+var isFullyPopulatedPropertyDescriptor = __nccwpck_require__(5724);
+var isPropertyDescriptor = __nccwpck_require__(9148);
 
-module.exports = function Type(x) {
-	if (typeof x === 'symbol') {
-		return 'Symbol';
+var FromPropertyDescriptor = __nccwpck_require__(6589);
+var IsAccessorDescriptor = __nccwpck_require__(719);
+var IsDataDescriptor = __nccwpck_require__(1197);
+var IsGenericDescriptor = __nccwpck_require__(643);
+var isPropertyKey = __nccwpck_require__(6656);
+var SameValue = __nccwpck_require__(2663);
+
+// https://262.ecma-international.org/13.0/#sec-validateandapplypropertydescriptor
+
+// see https://github.com/tc39/ecma262/pull/2468 for ES2022 changes
+
+// eslint-disable-next-line max-lines-per-function, max-statements
+module.exports = function ValidateAndApplyPropertyDescriptor(O, P, extensible, Desc, current) {
+	if (typeof O !== 'undefined' && !isObject(O)) {
+		throw new $TypeError('Assertion failed: O must be undefined or an Object');
 	}
+	if (!isPropertyKey(P)) {
+		throw new $TypeError('Assertion failed: P must be a Property Key');
+	}
+	if (typeof extensible !== 'boolean') {
+		throw new $TypeError('Assertion failed: extensible must be a Boolean');
+	}
+	if (!isPropertyDescriptor(Desc)) {
+		throw new $TypeError('Assertion failed: Desc must be a Property Descriptor');
+	}
+	if (typeof current !== 'undefined' && !isPropertyDescriptor(current)) {
+		throw new $TypeError('Assertion failed: current must be a Property Descriptor, or undefined');
+	}
+
+	if (typeof current === 'undefined') { // step 2
+		if (!extensible) {
+			return false; // step 2.a
+		}
+		if (typeof O === 'undefined') {
+			return true; // step 2.b
+		}
+		if (IsAccessorDescriptor(Desc)) { // step 2.c
+			return DefineOwnProperty(
+				IsDataDescriptor,
+				SameValue,
+				FromPropertyDescriptor,
+				O,
+				P,
+				Desc
+			);
+		}
+		// step 2.d
+		return DefineOwnProperty(
+			IsDataDescriptor,
+			SameValue,
+			FromPropertyDescriptor,
+			O,
+			P,
+			{
+				'[[Configurable]]': !!Desc['[[Configurable]]'],
+				'[[Enumerable]]': !!Desc['[[Enumerable]]'],
+				'[[Value]]': Desc['[[Value]]'],
+				'[[Writable]]': !!Desc['[[Writable]]']
+			}
+		);
+	}
+
+	// 3. Assert: current is a fully populated Property Descriptor.
+	if (
+		!isFullyPopulatedPropertyDescriptor(
+			{
+				IsAccessorDescriptor: IsAccessorDescriptor,
+				IsDataDescriptor: IsDataDescriptor
+			},
+			current
+		)
+	) {
+		throw new $TypeError('`current`, when present, must be a fully populated and valid Property Descriptor');
+	}
+
+	// 4. If every field in Desc is absent, return true.
+	// this can't really match the assertion that it's a Property Descriptor in our JS implementation
+
+	// 5. If current.[[Configurable]] is false, then
+	if (!current['[[Configurable]]']) {
+		if ('[[Configurable]]' in Desc && Desc['[[Configurable]]']) {
+			// step 5.a
+			return false;
+		}
+		if ('[[Enumerable]]' in Desc && !SameValue(Desc['[[Enumerable]]'], current['[[Enumerable]]'])) {
+			// step 5.b
+			return false;
+		}
+		if (!IsGenericDescriptor(Desc) && !SameValue(IsAccessorDescriptor(Desc), IsAccessorDescriptor(current))) {
+			// step 5.c
+			return false;
+		}
+		if (IsAccessorDescriptor(current)) { // step 5.d
+			if ('[[Get]]' in Desc && !SameValue(Desc['[[Get]]'], current['[[Get]]'])) {
+				return false;
+			}
+			if ('[[Set]]' in Desc && !SameValue(Desc['[[Set]]'], current['[[Set]]'])) {
+				return false;
+			}
+		} else if (!current['[[Writable]]']) { // step 5.e
+			if ('[[Writable]]' in Desc && Desc['[[Writable]]']) {
+				return false;
+			}
+			if ('[[Value]]' in Desc && !SameValue(Desc['[[Value]]'], current['[[Value]]'])) {
+				return false;
+			}
+		}
+	}
+
+	// 6. If O is not undefined, then
+	if (typeof O !== 'undefined') {
+		var configurable;
+		var enumerable;
+		if (IsDataDescriptor(current) && IsAccessorDescriptor(Desc)) { // step 6.a
+			configurable = ('[[Configurable]]' in Desc ? Desc : current)['[[Configurable]]'];
+			enumerable = ('[[Enumerable]]' in Desc ? Desc : current)['[[Enumerable]]'];
+			// Replace the property named P of object O with an accessor property having [[Configurable]] and [[Enumerable]] attributes as described by current and each other attribute set to its default value.
+			return DefineOwnProperty(
+				IsDataDescriptor,
+				SameValue,
+				FromPropertyDescriptor,
+				O,
+				P,
+				{
+					'[[Configurable]]': !!configurable,
+					'[[Enumerable]]': !!enumerable,
+					'[[Get]]': ('[[Get]]' in Desc ? Desc : current)['[[Get]]'],
+					'[[Set]]': ('[[Set]]' in Desc ? Desc : current)['[[Set]]']
+				}
+			);
+		} else if (IsAccessorDescriptor(current) && IsDataDescriptor(Desc)) {
+			configurable = ('[[Configurable]]' in Desc ? Desc : current)['[[Configurable]]'];
+			enumerable = ('[[Enumerable]]' in Desc ? Desc : current)['[[Enumerable]]'];
+			// i. Replace the property named P of object O with a data property having [[Configurable]] and [[Enumerable]] attributes as described by current and each other attribute set to its default value.
+			return DefineOwnProperty(
+				IsDataDescriptor,
+				SameValue,
+				FromPropertyDescriptor,
+				O,
+				P,
+				{
+					'[[Configurable]]': !!configurable,
+					'[[Enumerable]]': !!enumerable,
+					'[[Value]]': ('[[Value]]' in Desc ? Desc : current)['[[Value]]'],
+					'[[Writable]]': !!('[[Writable]]' in Desc ? Desc : current)['[[Writable]]']
+				}
+			);
+		}
+
+		// For each field of Desc that is present, set the corresponding attribute of the property named P of object O to the value of the field.
+		return DefineOwnProperty(
+			IsDataDescriptor,
+			SameValue,
+			FromPropertyDescriptor,
+			O,
+			P,
+			Desc
+		);
+	}
+
+	return true; // step 7
+};
+
+
+/***/ }),
+
+/***/ 6419:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+// var modulo = require('./modulo');
+var $floor = __nccwpck_require__(924);
+
+// http://262.ecma-international.org/11.0/#eqn-floor
+
+module.exports = function floor(x) {
+	// return x - modulo(x, 1);
 	if (typeof x === 'bigint') {
-		return 'BigInt';
+		return x;
 	}
-	return ES5Type(x);
-};
-
-
-/***/ }),
-
-/***/ 1958:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-var GetIntrinsic = __nccwpck_require__(4538);
-
-var $abs = GetIntrinsic('%Math.abs%');
-
-// http://262.ecma-international.org/5.1/#sec-5.2
-
-module.exports = function abs(x) {
-	return $abs(x);
-};
-
-
-/***/ }),
-
-/***/ 7937:
-/***/ ((module) => {
-
-"use strict";
-
-
-// var modulo = require('./modulo');
-var $floor = Math.floor;
-
-// http://262.ecma-international.org/5.1/#sec-5.2
-
-module.exports = function floor(x) {
-	// return x - modulo(x, 1);
 	return $floor(x);
 };
 
 
 /***/ }),
 
-/***/ 3300:
+/***/ 5301:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var floor = __nccwpck_require__(6419);
+
+var $TypeError = __nccwpck_require__(6361);
+
+// https://262.ecma-international.org/14.0/#eqn-truncate
+
+module.exports = function truncate(x) {
+	if (typeof x !== 'number' && typeof x !== 'bigint') {
+		throw new $TypeError('argument must be a Number or a BigInt');
+	}
+	var result = x < 0 ? -floor(-x) : floor(x);
+	return result === 0 ? 0 : result; // in the spec, these are math values, so we filter out -0 here
+};
+
+
+/***/ }),
+
+/***/ 8572:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
@@ -49472,152 +50640,16 @@ module.exports = function floor(x) {
 
 var GetIntrinsic = __nccwpck_require__(4538);
 
-var $TypeError = GetIntrinsic('%TypeError%');
+var $String = GetIntrinsic('%String%');
+var $TypeError = __nccwpck_require__(6361);
 
-// http://262.ecma-international.org/5.1/#sec-9.10
+// https://262.ecma-international.org/6.0/#sec-tostring
 
-module.exports = function CheckObjectCoercible(value, optMessage) {
-	if (value == null) {
-		throw new $TypeError(optMessage || ('Cannot call method on ' + value));
+module.exports = function ToString(argument) {
+	if (typeof argument === 'symbol') {
+		throw new $TypeError('Cannot convert a Symbol value to a string');
 	}
-	return value;
-};
-
-
-/***/ }),
-
-/***/ 8506:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-var abs = __nccwpck_require__(973);
-var floor = __nccwpck_require__(7412);
-var ToNumber = __nccwpck_require__(358);
-
-var $isNaN = __nccwpck_require__(5893);
-var $isFinite = __nccwpck_require__(7886);
-var $sign = __nccwpck_require__(2250);
-
-// http://262.ecma-international.org/5.1/#sec-9.4
-
-module.exports = function ToInteger(value) {
-	var number = ToNumber(value);
-	if ($isNaN(number)) { return 0; }
-	if (number === 0 || !$isFinite(number)) { return number; }
-	return $sign(number) * floor(abs(number));
-};
-
-
-/***/ }),
-
-/***/ 358:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-var ToPrimitive = __nccwpck_require__(1416);
-
-// http://262.ecma-international.org/5.1/#sec-9.3
-
-module.exports = function ToNumber(value) {
-	var prim = ToPrimitive(value, Number);
-	if (typeof prim !== 'string') {
-		return +prim; // eslint-disable-line no-implicit-coercion
-	}
-
-	// eslint-disable-next-line no-control-regex
-	var trimmed = prim.replace(/^[ \t\x0b\f\xa0\ufeff\n\r\u2028\u2029\u1680\u180e\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u202f\u205f\u3000\u0085]+|[ \t\x0b\f\xa0\ufeff\n\r\u2028\u2029\u1680\u180e\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u202f\u205f\u3000\u0085]+$/g, '');
-	if ((/^0[ob]|^[+-]0x/).test(trimmed)) {
-		return NaN;
-	}
-
-	return +trimmed; // eslint-disable-line no-implicit-coercion
-};
-
-
-/***/ }),
-
-/***/ 1416:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-// http://262.ecma-international.org/5.1/#sec-9.1
-
-module.exports = __nccwpck_require__(3884);
-
-
-/***/ }),
-
-/***/ 9029:
-/***/ ((module) => {
-
-"use strict";
-
-
-// https://262.ecma-international.org/5.1/#sec-8
-
-module.exports = function Type(x) {
-	if (x === null) {
-		return 'Null';
-	}
-	if (typeof x === 'undefined') {
-		return 'Undefined';
-	}
-	if (typeof x === 'function' || typeof x === 'object') {
-		return 'Object';
-	}
-	if (typeof x === 'number') {
-		return 'Number';
-	}
-	if (typeof x === 'boolean') {
-		return 'Boolean';
-	}
-	if (typeof x === 'string') {
-		return 'String';
-	}
-};
-
-
-/***/ }),
-
-/***/ 973:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-var GetIntrinsic = __nccwpck_require__(4538);
-
-var $abs = GetIntrinsic('%Math.abs%');
-
-// http://262.ecma-international.org/5.1/#sec-5.2
-
-module.exports = function abs(x) {
-	return $abs(x);
-};
-
-
-/***/ }),
-
-/***/ 7412:
-/***/ ((module) => {
-
-"use strict";
-
-
-// var modulo = require('./modulo');
-var $floor = Math.floor;
-
-// http://262.ecma-international.org/5.1/#sec-5.2
-
-module.exports = function floor(x) {
-	// return x - modulo(x, 1);
-	return $floor(x);
+	return $String(argument);
 };
 
 
@@ -49644,16 +50676,14 @@ module.exports = __nccwpck_require__(4538);
 
 var hasPropertyDescriptors = __nccwpck_require__(176);
 
-var GetIntrinsic = __nccwpck_require__(4538);
-
-var $defineProperty = hasPropertyDescriptors() && GetIntrinsic('%Object.defineProperty%', true);
+var $defineProperty = __nccwpck_require__(6123);
 
 var hasArrayLengthDefineBug = hasPropertyDescriptors.hasArrayLengthDefineBug();
 
 // eslint-disable-next-line global-require
 var isArray = hasArrayLengthDefineBug && __nccwpck_require__(1394);
 
-var callBound = __nccwpck_require__(8803);
+var callBound = __nccwpck_require__(1785);
 
 var $isEnumerable = callBound('Object.prototype.propertyIsEnumerable');
 
@@ -49710,67 +50740,10 @@ var GetIntrinsic = __nccwpck_require__(4538);
 var $Array = GetIntrinsic('%Array%');
 
 // eslint-disable-next-line global-require
-var toStr = !$Array.isArray && __nccwpck_require__(8803)('Object.prototype.toString');
+var toStr = !$Array.isArray && __nccwpck_require__(1785)('Object.prototype.toString');
 
 module.exports = $Array.isArray || function IsArray(argument) {
 	return toStr(argument) === '[object Array]';
-};
-
-
-/***/ }),
-
-/***/ 986:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-var GetIntrinsic = __nccwpck_require__(4538);
-
-var $TypeError = GetIntrinsic('%TypeError%');
-var $SyntaxError = GetIntrinsic('%SyntaxError%');
-
-var has = __nccwpck_require__(6339);
-
-var isMatchRecord = __nccwpck_require__(3313);
-
-var predicates = {
-	// https://262.ecma-international.org/6.0/#sec-property-descriptor-specification-type
-	'Property Descriptor': function isPropertyDescriptor(Desc) {
-		var allowed = {
-			'[[Configurable]]': true,
-			'[[Enumerable]]': true,
-			'[[Get]]': true,
-			'[[Set]]': true,
-			'[[Value]]': true,
-			'[[Writable]]': true
-		};
-
-		for (var key in Desc) { // eslint-disable-line
-			if (has(Desc, key) && !allowed[key]) {
-				return false;
-			}
-		}
-
-		var isData = has(Desc, '[[Value]]');
-		var IsAccessor = has(Desc, '[[Get]]') || has(Desc, '[[Set]]');
-		if (isData && IsAccessor) {
-			throw new $TypeError('Property Descriptors may not be both accessor and data descriptors');
-		}
-		return true;
-	},
-	// https://262.ecma-international.org/13.0/#sec-match-records
-	'Match Record': isMatchRecord
-};
-
-module.exports = function assertRecord(Type, recordType, argumentName, value) {
-	var predicate = predicates[recordType];
-	if (typeof predicate !== 'function') {
-		throw new $SyntaxError('unknown record type: ' + recordType);
-	}
-	if (Type(value) !== 'Object' || !predicate(value)) {
-		throw new $TypeError(argumentName + ' must be a ' + recordType);
-	}
 };
 
 
@@ -49811,74 +50784,19 @@ module.exports = function fromPropertyDescriptor(Desc) {
 
 /***/ }),
 
-/***/ 3850:
+/***/ 5724:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
 
-var GetIntrinsic = __nccwpck_require__(4538);
+var isPropertyDescriptor = __nccwpck_require__(9148);
 
-var $gOPD = GetIntrinsic('%Object.getOwnPropertyDescriptor%', true);
-if ($gOPD) {
-	try {
-		$gOPD([], 'length');
-	} catch (e) {
-		// IE 8 has a broken gOPD
-		$gOPD = null;
-	}
-}
-
-module.exports = $gOPD;
-
-
-/***/ }),
-
-/***/ 7886:
-/***/ ((module) => {
-
-"use strict";
-
-
-var $isNaN = Number.isNaN || function (a) { return a !== a; };
-
-module.exports = Number.isFinite || function (x) { return typeof x === 'number' && !$isNaN(x) && x !== Infinity && x !== -Infinity; };
-
-
-/***/ }),
-
-/***/ 3313:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-var has = __nccwpck_require__(6339);
-
-// https://262.ecma-international.org/13.0/#sec-match-records
-
-module.exports = function isMatchRecord(record) {
-	return (
-		has(record, '[[StartIndex]]')
-        && has(record, '[[EndIndex]]')
-        && record['[[StartIndex]]'] >= 0
-        && record['[[EndIndex]]'] >= record['[[StartIndex]]']
-        && String(parseInt(record['[[StartIndex]]'], 10)) === String(record['[[StartIndex]]'])
-        && String(parseInt(record['[[EndIndex]]'], 10)) === String(record['[[EndIndex]]'])
-	);
-};
-
-
-/***/ }),
-
-/***/ 5893:
-/***/ ((module) => {
-
-"use strict";
-
-
-module.exports = Number.isNaN || function isNaN(a) {
-	return a !== a;
+module.exports = function isFullyPopulatedPropertyDescriptor(ES, Desc) {
+	return isPropertyDescriptor(Desc)
+		&& '[[Enumerable]]' in Desc
+		&& '[[Configurable]]' in Desc
+		&& (ES.IsAccessorDescriptor(Desc) || ES.IsDataDescriptor(Desc));
 };
 
 
@@ -49897,86 +50815,58 @@ module.exports = function isPrimitive(value) {
 
 /***/ }),
 
-/***/ 6609:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-var GetIntrinsic = __nccwpck_require__(4538);
-
-var has = __nccwpck_require__(6339);
-var $TypeError = GetIntrinsic('%TypeError%');
-
-module.exports = function IsPropertyDescriptor(ES, Desc) {
-	if (ES.Type(Desc) !== 'Object') {
-		return false;
-	}
-	var allowed = {
-		'[[Configurable]]': true,
-		'[[Enumerable]]': true,
-		'[[Get]]': true,
-		'[[Set]]': true,
-		'[[Value]]': true,
-		'[[Writable]]': true
-	};
-
-	for (var key in Desc) { // eslint-disable-line no-restricted-syntax
-		if (has(Desc, key) && !allowed[key]) {
-			return false;
-		}
-	}
-
-	if (ES.IsDataDescriptor(Desc) && ES.IsAccessorDescriptor(Desc)) {
-		throw new $TypeError('Property Descriptors may not be both accessor and data descriptors');
-	}
-	return true;
-};
-
-
-/***/ }),
-
-/***/ 7176:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-var GetIntrinsic = __nccwpck_require__(4538);
-
-var $Math = GetIntrinsic('%Math%');
-var $Number = GetIntrinsic('%Number%');
-
-module.exports = $Number.MAX_SAFE_INTEGER || $Math.pow(2, 53) - 1;
-
-
-/***/ }),
-
-/***/ 4096:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-var callBound = __nccwpck_require__(8803);
-
-var $exec = callBound('RegExp.prototype.exec');
-
-module.exports = function regexTester(regex) {
-	return function test(s) { return $exec(regex, s) !== null; };
-};
-
-
-/***/ }),
-
-/***/ 2250:
+/***/ 6656:
 /***/ ((module) => {
 
 "use strict";
 
 
-module.exports = function sign(number) {
-	return number >= 0 ? 1 : -1;
+module.exports = function isPropertyKey(argument) {
+	return typeof argument === 'string' || typeof argument === 'symbol';
+};
+
+
+/***/ }),
+
+/***/ 9148:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var $TypeError = __nccwpck_require__(6361);
+
+var hasOwn = __nccwpck_require__(2157);
+
+var allowed = {
+	__proto__: null,
+	'[[Configurable]]': true,
+	'[[Enumerable]]': true,
+	'[[Get]]': true,
+	'[[Set]]': true,
+	'[[Value]]': true,
+	'[[Writable]]': true
+};
+
+// https://262.ecma-international.org/6.0/#sec-property-descriptor-specification-type
+
+module.exports = function isPropertyDescriptor(Desc) {
+	if (!Desc || typeof Desc !== 'object') {
+		return false;
+	}
+
+	for (var key in Desc) { // eslint-disable-line
+		if (hasOwn(Desc, key) && !allowed[key]) {
+			return false;
+		}
+	}
+
+	var isData = hasOwn(Desc, '[[Value]]') || hasOwn(Desc, '[[Writable]]');
+	var IsAccessor = hasOwn(Desc, '[[Get]]') || hasOwn(Desc, '[[Set]]');
+	if (isData && IsAccessor) {
+		throw new $TypeError('Property Descriptors may not be both accessor and data descriptors');
+	}
+	return true;
 };
 
 
@@ -49986,7 +50876,7 @@ module.exports = function sign(number) {
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
-/*! Axios v1.18.0 Copyright (c) 2026 Matt Zabriskie and contributors */
+/*! Axios v1.20.0 Copyright (c) 2026 Matt Zabriskie and contributors */
 
 
 var FormData$1 = __nccwpck_require__(4334);
@@ -50033,13 +50923,57 @@ const {
 const hasOwnProperty = (({
   hasOwnProperty
 }) => (obj, prop) => hasOwnProperty.call(obj, prop))(Object.prototype);
+const isUnsafeObjectKey = prop => typeof prop === 'string' && (prop === '__proto__' || prop === 'constructor' || prop === 'prototype');
 
 /**
- * Walk the prototype chain (excluding the shared Object.prototype) looking for
- * an own `prop`. This distinguishes genuine own/inherited members — including
- * class accessors and template prototypes — from members injected via
- * Object.prototype pollution (e.g. `Object.prototype.username = '...'`), which
- * live on Object.prototype itself and are therefore never matched.
+ * Determine whether an inherited object must be treated as a shared-prototype
+ * boundary. Cross-realm Object.prototype objects cannot be distinguished
+ * reliably from application-created null-prototype objects because their
+ * properties are mutable, so all inherited terminal prototypes are excluded
+ * as a fail-closed boundary. A null-prototype source still keeps its own
+ * properties, as produced by mergeConfig and other safe materialization paths.
+ *
+ * @param {*} obj The object to inspect
+ * @param {*} prototype The object's prototype
+ * @param {boolean} source Whether obj is the original traversal source
+ *
+ * @returns {boolean} True when obj is a safe prototype traversal boundary
+ */
+const isPrototypeBoundary = (obj, prototype, source) => obj === Object.prototype || !source && prototype === null;
+
+/**
+ * Determine whether an object can retain its identity through code paths that
+ * add, replace, and remove config properties without bypassing unsafe-key
+ * filtering. Immutable objects, unsafe-key-bearing objects, and objects with
+ * accessor or restricted data properties must be materialized instead.
+ *
+ * @param {*} obj The object to inspect
+ *
+ * @returns {boolean} True when every own property is safe and fully mutable
+ */
+const isSafeAndFullyMutable = obj => {
+  if (!Object.isExtensible(obj)) {
+    return false;
+  }
+  const props = Object.getOwnPropertyNames(obj);
+  if (Object.getOwnPropertySymbols) {
+    props.push(...Object.getOwnPropertySymbols(obj));
+  }
+  return props.every(prop => {
+    if (isUnsafeObjectKey(prop)) {
+      return false;
+    }
+    const descriptor = Object.getOwnPropertyDescriptor(obj, prop);
+    return !!descriptor && descriptor.configurable && descriptor.writable === true;
+  });
+};
+
+/**
+ * Walk the prototype chain (excluding the source realm's Object.prototype)
+ * looking for an own `prop`. This distinguishes genuine own/inherited members
+ * — including class accessors and template prototypes — from members injected
+ * via Object.prototype pollution (e.g. `Object.prototype.username = '...'`),
+ * which live on Object.prototype itself and are therefore never matched.
  *
  * @param {*} thing The value whose chain to inspect
  * @param {string|symbol} prop The property key to look for
@@ -50049,15 +50983,19 @@ const hasOwnProperty = (({
 const hasOwnInPrototypeChain = (thing, prop) => {
   let obj = thing;
   const seen = [];
-  while (obj != null && obj !== Object.prototype) {
+  while (obj != null) {
     if (seen.indexOf(obj) !== -1) {
       return false;
     }
     seen.push(obj);
+    const prototype = getPrototypeOf(obj);
+    if (isPrototypeBoundary(obj, prototype, obj === thing)) {
+      return false;
+    }
     if (hasOwnProperty(obj, prop)) {
       return true;
     }
-    obj = getPrototypeOf(obj);
+    obj = prototype;
   }
   return false;
 };
@@ -50074,6 +51012,56 @@ const hasOwnInPrototypeChain = (thing, prop) => {
  * @returns {*} The resolved value, or undefined when unsafe/absent
  */
 const getSafeProp = (obj, prop) => obj != null && hasOwnInPrototypeChain(obj, prop) ? obj[prop] : undefined;
+
+/**
+ * Flatten an object and its application-defined prototype chain into a
+ * null-prototype object. Members inherited only from the source realm's
+ * Object.prototype are deliberately excluded, while class/template members
+ * below that boundary are preserved.
+ *
+ * @param {*} thing The value to flatten
+ *
+ * @returns {*} A null-prototype copy, or the original value when it is already
+ * structurally safe or is not an object
+ */
+const toSafeFlatObject = thing => {
+  if (thing == null || typeof thing !== 'object' && typeof thing !== 'function') {
+    return thing;
+  }
+  const sourcePrototype = getPrototypeOf(thing);
+  if (sourcePrototype === null && isSafeAndFullyMutable(thing)) {
+    return thing;
+  }
+  const result = Object.create(null);
+  const merged = Object.create(null);
+  const seen = [];
+  let current = thing;
+  while (current != null) {
+    if (seen.indexOf(current) !== -1) {
+      break;
+    }
+    seen.push(current);
+    const prototype = current === thing ? sourcePrototype : getPrototypeOf(current);
+    if (isPrototypeBoundary(current, prototype, current === thing)) {
+      break;
+    }
+    const props = Object.getOwnPropertyNames(current);
+    if (Object.getOwnPropertySymbols) {
+      props.push(...Object.getOwnPropertySymbols(current));
+    }
+    for (const prop of props) {
+      if (isUnsafeObjectKey(prop)) {
+        continue;
+      }
+      if (!hasOwnProperty(merged, prop)) {
+        result[prop] = thing[prop];
+        merged[prop] = true;
+      }
+    }
+    current = prototype;
+  }
+  return result;
+};
 const kindOf = (cache => thing => {
   const str = toString.call(thing);
   return cache[str] || (cache[str] = str.slice(8, -1).toLowerCase());
@@ -50197,9 +51185,9 @@ const isPlainObject = val => {
   }
   const prototype = getPrototypeOf(val);
   return (prototype === null || prototype === Object.prototype || getPrototypeOf(prototype) === null) &&
-  // Treat any genuine (non-Object.prototype-polluted) Symbol.toStringTag or
-  // Symbol.iterator as evidence the value is a tagged/iterable type rather
-  // than a plain object, while ignoring keys injected onto Object.prototype.
+  // Treat safe own/inherited Symbol.toStringTag or Symbol.iterator members as
+  // evidence the value is tagged/iterable, while ignoring members reachable
+  // only through shared or terminal prototype boundaries.
   !hasOwnInPrototypeChain(val, toStringTag) && !hasOwnInPrototypeChain(val, iterator);
 };
 
@@ -50283,6 +51271,7 @@ const isBlob = kindOfTest('Blob');
  * @returns {boolean} True if value is a FileList, otherwise false
  */
 const isFileList = kindOfTest('FileList');
+const isSet = kindOfTest('Set');
 
 /**
  * Determine if a value is a Stream
@@ -50805,11 +51794,20 @@ const toJSONObject = obj => {
       if (!('toJSON' in source)) {
         // add-on descent / delete-on-ascent: preserves path semantics, so DAG nodes serialise at every occurrence (see #7230).
         visited.add(source);
-        const target = isArray(source) ? [] : {};
-        forEach(source, (value, key) => {
-          const reducedValue = visit(value);
-          !isUndefined(reducedValue) && (target[key] = reducedValue);
-        });
+        let target;
+        if (isSet(source)) {
+          target = [];
+          for (const value of source) {
+            const reducedValue = visit(value);
+            !isUndefined(reducedValue) && target.push(reducedValue);
+          }
+        } else {
+          target = isArray(source) ? [] : {};
+          forEach(source, (value, key) => {
+            const reducedValue = visit(value);
+            !isUndefined(reducedValue) && (target[key] = reducedValue);
+          });
+        }
         visited.delete(source);
         return target;
       }
@@ -50937,6 +51935,7 @@ var utils$1 = {
   // an alias to avoid ESLint no-prototype-builtins detection
   hasOwnInPrototypeChain,
   getSafeProp,
+  toSafeFlatObject,
   reduceDescriptors,
   freezeMethods,
   toObjectSet,
@@ -50983,17 +51982,18 @@ var parseHeaders = rawHeaders => {
     i = line.indexOf(':');
     key = line.substring(0, i).trim().toLowerCase();
     val = line.substring(i + 1).trim();
-    if (!key || parsed[key] && ignoreDuplicateOf[key]) {
+    const hasKey = utils$1.hasOwnProp(parsed, key);
+    if (!key || hasKey && utils$1.hasOwnProp(ignoreDuplicateOf, key)) {
       return;
     }
     if (key === 'set-cookie') {
-      if (parsed[key]) {
+      if (hasKey) {
         parsed[key].push(val);
       } else {
         parsed[key] = [val];
       }
     } else {
-      parsed[key] = parsed[key] ? parsed[key] + ', ' + val : val;
+      parsed[key] = hasKey ? parsed[key] + ', ' + val : val;
     }
   });
   return parsed;
@@ -51040,7 +52040,7 @@ function toByteStringHeaderObject(headers) {
   return byteStringHeaders;
 }
 
-const $internals = Symbol('internals');
+const $internals$1 = Symbol('internals');
 function normalizeHeader(header) {
   return header && String(header).trim().toLowerCase();
 }
@@ -51058,6 +52058,90 @@ function parseTokens(str) {
     tokens[match[1]] = match[2];
   }
   return tokens;
+}
+const parameterNameRE = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+function trimOWS(value) {
+  let start = 0;
+  let end = value.length;
+  while (start < end) {
+    const code = value.charCodeAt(start);
+    if (code !== 0x09 && code !== 0x20) {
+      break;
+    }
+    start += 1;
+  }
+  while (end > start) {
+    const code = value.charCodeAt(end - 1);
+    if (code !== 0x09 && code !== 0x20) {
+      break;
+    }
+    end -= 1;
+  }
+  return start === 0 && end === value.length ? value : value.slice(start, end);
+}
+function decodeQuotedString(value) {
+  const last = value.length - 1;
+  if (last < 1 || value.charCodeAt(0) !== 0x22 || value.charCodeAt(last) !== 0x22) {
+    return value;
+  }
+  let decoded = '';
+  for (let i = 1; i < last; i++) {
+    const code = value.charCodeAt(i);
+    if (code === 0x22) {
+      return value;
+    }
+    if (code === 0x5c) {
+      i += 1;
+      if (i >= last) {
+        return value;
+      }
+    }
+    decoded += value[i];
+  }
+  return decoded;
+}
+function parseParameters(value) {
+  const parameters = Object.create(null);
+  const str = String(value);
+  let start = 0;
+  let quoted = false;
+  let escaped = false;
+  function parseParameter(end) {
+    const part = trimOWS(str.slice(start, end));
+    const equals = part.indexOf('=');
+    if (equals < 1) {
+      return;
+    }
+    const name = trimOWS(part.slice(0, equals));
+    if (!parameterNameRE.test(name)) {
+      return;
+    }
+    const normalizedName = name.toLowerCase();
+    if (normalizedName === '__proto__' || normalizedName === 'constructor' || normalizedName === 'prototype') {
+      return;
+    }
+    const parameterValue = trimOWS(part.slice(equals + 1));
+    parameters[normalizedName] = decodeQuotedString(parameterValue);
+  }
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i);
+    if (quoted) {
+      if (escaped) {
+        escaped = false;
+      } else if (code === 0x5c) {
+        escaped = true;
+      } else if (code === 0x22) {
+        quoted = false;
+      }
+    } else if (code === 0x22) {
+      quoted = true;
+    } else if (code === 0x2c || code === 0x3b) {
+      parseParameter(i);
+      start = i + 1;
+    }
+  }
+  parseParameter(str.length);
+  return parameters;
 }
 const isValidHeaderName = str => /^[-_a-zA-Z0-9^`|~,!#$%&'*+.]+$/.test(str.trim());
 function matchHeaderValue(context, value, header, filter, isHeaderNameFilter) {
@@ -51236,7 +52320,8 @@ class AxiosHeaders {
     return Object.entries(this.toJSON()).map(([header, value]) => header + ': ' + value).join('\n');
   }
   getSetCookie() {
-    return this.get('set-cookie') || [];
+    const value = this.get('set-cookie');
+    return utils$1.isArray(value) ? value : value == null || value === false ? [] : [value];
   }
   get [Symbol.toStringTag]() {
     return 'AxiosHeaders';
@@ -51244,13 +52329,16 @@ class AxiosHeaders {
   static from(thing) {
     return thing instanceof this ? thing : new this(thing);
   }
+  static parseParameters(value) {
+    return parseParameters(value);
+  }
   static concat(first, ...targets) {
     const computed = new this(first);
     targets.forEach(target => computed.set(target));
     return computed;
   }
   static accessor(header) {
-    const internals = this[$internals] = this[$internals] = {
+    const internals = this[$internals$1] = this[$internals$1] = {
       accessors: {}
     };
     const accessors = internals.accessors;
@@ -51338,10 +52426,46 @@ function redactConfig(config, redactKeys) {
   };
   return visit(config);
 }
+function stringifySafely$1(value) {
+  try {
+    return String(value);
+  } catch (err) {
+    return '';
+  }
+}
+function aggregateErrorMessage(error) {
+  const message = error.errors.map(entry => {
+    try {
+      return entry && entry.message ? stringifySafely$1(entry.message) : stringifySafely$1(entry);
+    } catch (err) {
+      return '';
+    }
+  }).filter(Boolean).join('; ');
+  return message || error.name || 'AggregateError';
+}
 class AxiosError extends Error {
   static from(error, code, config, request, response, customProps) {
-    const axiosError = new AxiosError(error.message, code || error.code, config, request, response);
-    axiosError.cause = error;
+    // `AggregateError` (thrown by Node on dual-stack/Happy-Eyeballs connection
+    // failures) has an empty `message`; its detail lives in `errors[]`. Without
+    // this, the wrapped error surfaces with a blank message (see #6721).
+    let message = error.message;
+    if (!message && utils$1.isArray(error.errors) && error.errors.length) {
+      message = aggregateErrorMessage(error);
+    }
+    const axiosError = new AxiosError(message, code || error.code, config, request, response);
+    // Match native `Error` `cause` semantics: non-enumerable. The wrapped
+    // error often carries circular internals (sockets, requests, agents), so
+    // an enumerable `cause` makes structured loggers (pino/winston) and any
+    // own-property walk throw "Converting circular structure to JSON".
+    // Regression from #6982; see #7205. `__proto__: null` mirrors the
+    // `message` descriptor below (prototype-pollution-safe descriptor).
+    Object.defineProperty(axiosError, 'cause', {
+      __proto__: null,
+      value: error,
+      writable: true,
+      enumerable: false,
+      configurable: true
+    });
     axiosError.name = error.name;
 
     // Preserve status from the original error if not already set from response
@@ -51432,6 +52556,15 @@ AxiosError.ERR_NOT_SUPPORT = 'ERR_NOT_SUPPORT';
 AxiosError.ERR_INVALID_URL = 'ERR_INVALID_URL';
 AxiosError.ERR_FORM_DATA_DEPTH_EXCEEDED = 'ERR_FORM_DATA_DEPTH_EXCEEDED';
 
+var PlatformBuffer = {
+  isBufferAvailable() {
+    return typeof Buffer !== 'undefined';
+  },
+  from(value) {
+    return Buffer.from(value);
+  }
+};
+
 // Default nesting limit shared with the inverse transform (formDataToJSON) so
 // the FormData <-> JSON round-trip stays symmetric.
 const DEFAULT_FORM_DATA_MAX_DEPTH = 100;
@@ -51520,23 +52653,17 @@ function toFormData(obj, formData, options) {
 
   // eslint-disable-next-line no-param-reassign
   formData = formData || new (FormData$1 || FormData)();
-
-  // eslint-disable-next-line no-param-reassign
-  options = utils$1.toFlatObject(options, {
-    metaTokens: true,
-    dots: false,
-    indexes: false
-  }, false, function defined(option, source) {
-    // eslint-disable-next-line no-eq-null,eqeqeq
-    return !utils$1.isUndefined(source[option]);
-  });
-  const metaTokens = options.metaTokens;
+  const option = (name, fallback) => {
+    const value = utils$1.getSafeProp(options, name);
+    return utils$1.isUndefined(value) ? fallback : value;
+  };
+  const metaTokens = option('metaTokens', true);
   // eslint-disable-next-line no-use-before-define
-  const visitor = options.visitor || defaultVisitor;
-  const dots = options.dots;
-  const indexes = options.indexes;
-  const _Blob = options.Blob || typeof Blob !== 'undefined' && Blob;
-  const maxDepth = options.maxDepth === undefined ? DEFAULT_FORM_DATA_MAX_DEPTH : options.maxDepth;
+  const visitor = option('visitor') || defaultVisitor;
+  const dots = option('dots', false);
+  const indexes = option('indexes', false);
+  const _Blob = option('Blob') || typeof Blob !== 'undefined' && Blob;
+  const maxDepth = option('maxDepth', DEFAULT_FORM_DATA_MAX_DEPTH);
   const useBlob = _Blob && utils$1.isSpecCompliantForm(formData);
   const stack = [];
   if (!utils$1.isFunction(visitor)) {
@@ -51554,7 +52681,13 @@ function toFormData(obj, formData, options) {
       throw new AxiosError('Blob is not supported. Use a Buffer instead.');
     }
     if (utils$1.isArrayBuffer(value) || utils$1.isTypedArray(value)) {
-      return useBlob && typeof Blob === 'function' ? new Blob([value]) : Buffer.from(value);
+      if (useBlob && typeof _Blob === 'function') {
+        return new _Blob([value]);
+      }
+      if (PlatformBuffer && PlatformBuffer.isBufferAvailable()) {
+        return PlatformBuffer.from(value);
+      }
+      throw new AxiosError('Blob is not supported. Use a Buffer instead.', AxiosError.ERR_NOT_SUPPORT);
     }
     return value;
   }
@@ -51686,9 +52819,7 @@ prototype.append = function append(name, value) {
   this._pairs.push([name, value]);
 };
 prototype.toString = function toString(encoder) {
-  const _encode = encoder ? function (value) {
-    return encoder.call(this, value, encode$1);
-  } : encode$1;
+  const _encode = encoder ? value => encoder.call(this, value, encode$1) : encode$1;
   return this._pairs.map(function each(pair) {
     return _encode(pair[0]) + '=' + _encode(pair[1]);
   }, '').join('&');
@@ -51719,6 +52850,7 @@ function buildURL(url, params, options) {
   if (!params) {
     return url;
   }
+  url = url || '';
   const _options = utils$1.isFunction(options) ? {
     serialize: options
   } : options;
@@ -51744,9 +52876,51 @@ function buildURL(url, params, options) {
   return url;
 }
 
+const $internals = Symbol('internals');
+
+// `handlers` is public and may be replaced with a nullish value by user code;
+// `clear()` has always tolerated that. Treat it as an empty stack rather than
+// dereferencing it.
+function countHandlers(handlers) {
+  return handlers ? handlers.length : 0;
+}
+function trimHandlers(handlers) {
+  if (!handlers) {
+    return;
+  }
+  while (handlers.length && handlers[handlers.length - 1] === null) {
+    handlers.pop();
+  }
+}
+function syncHandlerEntries(manager, internals) {
+  const handlers = manager.handlers;
+  const length = countHandlers(handlers);
+  if (handlers !== internals.handlersRef) {
+    internals.handlersRef = handlers;
+    internals.handlerEntries.clear();
+  } else if (length !== internals.handlersLength) {
+    if (!length) {
+      internals.handlerEntries.clear();
+    } else {
+      internals.handlerEntries.forEach(function removeStaleEntry(entry, id) {
+        if (handlers[entry.index] !== entry.handler) {
+          internals.handlerEntries.delete(id);
+        }
+      });
+    }
+  }
+  internals.handlersLength = length;
+}
 class InterceptorManager {
   constructor() {
     this.handlers = [];
+    this[$internals] = {
+      handlersRef: this.handlers,
+      handlersLength: this.handlers.length,
+      handlerEntries: new Map(),
+      iterationDepth: 0,
+      nextId: 0
+    };
   }
 
   /**
@@ -51759,13 +52933,25 @@ class InterceptorManager {
    * @return {Number} An ID used to remove interceptor later
    */
   use(fulfilled, rejected, options) {
-    this.handlers.push({
+    const handler = {
       fulfilled,
       rejected,
       synchronous: options ? options.synchronous : false,
       runWhen: options ? options.runWhen : null
+    };
+    const internals = this[$internals];
+    if (this.handlers == null) {
+      this.handlers = [];
+    }
+    syncHandlerEntries(this, internals);
+    const id = internals.nextId++;
+    this.handlers.push(handler);
+    internals.handlerEntries.set(id, {
+      handler,
+      index: this.handlers.length - 1
     });
-    return this.handlers.length - 1;
+    internals.handlersLength = this.handlers.length;
+    return id;
   }
 
   /**
@@ -51776,8 +52962,23 @@ class InterceptorManager {
    * @returns {void}
    */
   eject(id) {
-    if (this.handlers[id]) {
-      this.handlers[id] = null;
+    const internals = this[$internals];
+    syncHandlerEntries(this, internals);
+    const entry = internals.handlerEntries.get(id);
+    if (entry) {
+      internals.handlerEntries.delete(id);
+
+      // Ignore IDs invalidated by clear or direct replacement of handlers.
+      if (this.handlers[entry.index] !== entry.handler) {
+        return;
+      }
+      this.handlers[entry.index] = null;
+
+      // Do not reuse an index while forEach is walking its length snapshot.
+      if (!internals.iterationDepth) {
+        trimHandlers(this.handlers);
+        internals.handlersLength = this.handlers.length;
+      }
     }
   }
 
@@ -51789,6 +52990,7 @@ class InterceptorManager {
   clear() {
     if (this.handlers) {
       this.handlers = [];
+      syncHandlerEntries(this, this[$internals]);
     }
   }
 
@@ -51803,11 +53005,22 @@ class InterceptorManager {
    * @returns {void}
    */
   forEach(fn) {
-    utils$1.forEach(this.handlers, function forEachHandler(h) {
-      if (h !== null) {
-        fn(h);
+    const internals = this[$internals];
+    syncHandlerEntries(this, internals);
+    internals.iterationDepth++;
+    try {
+      utils$1.forEach(this.handlers, function forEachHandler(h) {
+        if (h !== null) {
+          fn(h);
+        }
+      });
+    } finally {
+      if (! --internals.iterationDepth) {
+        syncHandlerEntries(this, internals);
+        trimHandlers(this.handlers);
+        internals.handlersLength = countHandlers(this.handlers);
       }
-    });
+    }
   }
 }
 
@@ -51933,12 +53146,18 @@ function throwIfDepthExceeded(index) {
  * @returns An array of strings.
  */
 function parsePropPath(name) {
-  // foo[x][y][z]
-  // foo.x.y.z
-  // foo-x-y-z
-  // foo x y z
+  // foo[x][y][z] -> ['foo', 'x', 'y', 'z']
+  // foo.x.y.z    -> ['foo', 'x', 'y', 'z']
+  // A path is split on `.` and on `[...]` groups. A segment — whether written
+  // in dot notation or captured inside brackets — may contain any character
+  // except `.`, `[` and `]`, so a key like `user-name` or `user name` is kept
+  // literal instead of being split (#5402). `.`, `[` and `]` keep their existing
+  // meaning, e.g. `foo[bar.baz]` -> ['foo', 'bar', 'baz'] and `[]` is an array push.
+  // Excluding `[` from the bracket group also makes the match fail fast at the
+  // next `[`, so a malformed name cannot rescan to the end of the string from
+  // every unmatched `[` — parsing stays linear in the length of the name.
   const path = [];
-  const pattern = /\w+|\[(\w*)]/g;
+  const pattern = /[^.[\]]+|\[([^.[\]]*)]/g;
   let match;
   while ((match = pattern.exec(name)) !== null) {
     throwIfDepthExceeded(path.length);
@@ -52008,6 +53227,8 @@ function formDataToJSON(formData) {
   }
   return null;
 }
+
+const methodList = Object.freeze(['get', 'delete', 'head', 'options', 'post', 'put', 'patch', 'purge', 'link', 'unlink', 'query']);
 
 const own = (obj, key) => obj != null && utils$1.hasOwnProp(obj, key) ? obj[key] : undefined;
 
@@ -52125,7 +53346,7 @@ const defaults = {
     }
   }
 };
-utils$1.forEach(['delete', 'get', 'head', 'post', 'put', 'patch', 'query'], method => {
+utils$1.forEach(methodList, method => {
   defaults.headers[method] = {};
 });
 
@@ -52214,24 +53435,70 @@ function isAbsoluteURL(url) {
  * @returns {string} The combined URL
  */
 function combineURLs(baseURL, relativeURL) {
-  return relativeURL ? baseURL.replace(/\/?\/$/, '') + '/' + relativeURL.replace(/^\/+/, '') : baseURL;
+  if (!relativeURL) {
+    return baseURL;
+  }
+  let end = baseURL.length;
+  while (end > 0 && baseURL.charCodeAt(end - 1) === 47) {
+    end--;
+  }
+  return baseURL.slice(0, end) + '/' + relativeURL.replace(/^\/+/, '');
+}
+
+const urlParserControlCharacters = /[\t\n\r]/g;
+
+/**
+ * Match WHATWG URL preprocessing before checking a URL's protocol.
+ *
+ * @param {string} url
+ *
+ * @returns {string}
+ */
+function normalizeURLForProtocolCheck(url) {
+  if (typeof url !== 'string') {
+    return url;
+  }
+  let start = 0;
+  while (start < url.length && url.charCodeAt(start) <= 0x20) {
+    start++;
+  }
+  return url.slice(start).replace(urlParserControlCharacters, '');
 }
 
 const malformedHttpProtocol = /^https?:(?!\/\/)/i;
-const httpProtocolControlCharacters = /[\t\n\r]/g;
-function stripLeadingC0ControlOrSpace(url) {
-  let i = 0;
-  while (i < url.length && url.charCodeAt(i) <= 0x20) {
-    i++;
+
+// Redact the parts of a URL that can carry secrets before it is embedded in an
+// error message. AxiosError.toJSON() serializes `message` verbatim and errors
+// are commonly logged, while the opt-in `config.redact` model only cleans
+// config keys — it cannot reach the message. Redact only the genuinely
+// sensitive substrings — userinfo (credentials), query parameter values and
+// fragment contents — with the same REDACTED marker the config redaction uses,
+// while keeping the scheme, host, path and parameter names so the offending
+// request stays accurately identifiable.
+function redactFragment(fragment) {
+  if (!fragment) {
+    return fragment;
   }
-  return url.slice(i);
+  return fragment.replace(/(^|&)([^=&]*=)?[^&]+/g, (match, separator, parameterName = '') => {
+    return `${separator}${parameterName}${REDACTED}`;
+  });
 }
-function normalizeURLForProtocolCheck(url) {
-  return stripLeadingC0ControlOrSpace(url).replace(httpProtocolControlCharacters, '');
+function redactSensitiveURLParts(url) {
+  const redactedURL = url.replace(/^(https?:\/{0,2})[^/?#]*@/i, `$1${REDACTED}@`);
+  const fragmentIndex = redactedURL.indexOf('#');
+  const urlWithoutFragment = fragmentIndex === -1 ? redactedURL : redactedURL.slice(0, fragmentIndex);
+  const redactedURLWithoutFragment = urlWithoutFragment.replace(/([?&][^=&#]*=)[^&#]*/g, `$1${REDACTED}`);
+  if (fragmentIndex === -1) {
+    return redactedURLWithoutFragment;
+  }
+  return `${redactedURLWithoutFragment}#${redactFragment(redactedURL.slice(fragmentIndex + 1))}`;
 }
 function assertValidHttpProtocolURL(url, config) {
-  if (typeof url === 'string' && malformedHttpProtocol.test(normalizeURLForProtocolCheck(url))) {
-    throw new AxiosError('Invalid URL: missing "//" after protocol', AxiosError.ERR_INVALID_URL, config);
+  if (typeof url === 'string') {
+    const normalizedURL = normalizeURLForProtocolCheck(url);
+    if (malformedHttpProtocol.test(normalizedURL)) {
+      throw new AxiosError(`Invalid URL ${JSON.stringify(redactSensitiveURLParts(normalizedURL))}: missing "//" after protocol`, AxiosError.ERR_INVALID_URL, config);
+    }
   }
 }
 
@@ -52351,7 +53618,7 @@ function getEnv(key) {
   return process.env[key.toLowerCase()] || process.env[key.toUpperCase()] || '';
 }
 
-const VERSION = "1.18.0";
+const VERSION = "1.20.0";
 
 function parseProtocol(url) {
   const match = /^([-+\w]{1,25}):(?:\/\/)?/.exec(url);
@@ -52360,7 +53627,7 @@ function parseProtocol(url) {
 
 // RFC 2397: data:[<mediatype>][;base64],<data>
 // mediatype = type/subtype followed by optional ;name=value parameters
-const DATA_URL_PATTERN = /^([^,;]+\/[^,;]+)?((?:;[^,;=]+=[^,;]+)*)(;base64)?,([\s\S]*)$/;
+const DATA_URL_PATTERN = /^([^,;/]+\/[^,;/]+)?((?:;[^,;=]+=[^,;]+)*)(;base64)?,([\s\S]*)$/;
 
 /**
  * Parse data uri to a Buffer or Blob
@@ -52391,13 +53658,13 @@ function fromDataURI(uri, asBlob, options) {
 
     // RFC 2397 section 3: default mediatype is text/plain;charset=US-ASCII
     // Bare `data:,` leaves mime undefined; Blob normalises that to "" per spec.
-    let mime;
+    let mime = '';
     if (type) {
       mime = params ? type + params : type;
     } else if (params) {
       mime = 'text/plain' + params;
     }
-    const buffer = Buffer.from(decodeURIComponent(body), encoding);
+    const buffer = encoding === 'base64' ? Buffer.from(body, 'base64') : Buffer.from(decodeURIComponent(body), encoding);
     if (asBlob) {
       if (!_Blob) {
         throw new AxiosError('Blob is not supported', AxiosError.ERR_NOT_SUPPORT);
@@ -52409,6 +53676,31 @@ function fromDataURI(uri, asBlob, options) {
     return buffer;
   }
   throw new AxiosError('Unsupported protocol ' + protocol, AxiosError.ERR_NOT_SUPPORT);
+}
+
+const FORM_DATA_CONTENT_HEADERS = ['content-type', 'content-length'];
+
+/**
+ * Apply the headers generated by a FormData implementation to the request headers,
+ * honoring the `formDataHeaderPolicy` option: with 'content-only', copy only the
+ * content-* headers; otherwise merge all of them.
+ *
+ * @param {AxiosHeaders} headers - the request headers to mutate
+ * @param {Object | null | undefined} formHeaders - headers produced by the FormData implementation
+ * @param {String} [policy] - the resolved `formDataHeaderPolicy` config value
+ *
+ * @returns {void}
+ */
+function setFormDataHeaders(headers, formHeaders, policy) {
+  if (policy !== 'content-only') {
+    headers.set(formHeaders);
+    return;
+  }
+  Object.entries(formHeaders || {}).forEach(([key, val]) => {
+    if (FORM_DATA_CONTENT_HEADERS.includes(key.toLowerCase())) {
+      headers.set(key, val);
+    }
+  });
 }
 
 const kInternals = Symbol('internals');
@@ -52648,7 +53940,7 @@ class Http2Sessions {
     this.sessions = Object.create(null);
   }
   getSession(authority, options) {
-    options = Object.assign({
+    options = Object.assign(Object.create(null), {
       sessionTimeout: 1000
     }, options);
     let authoritySessions = this.sessions[authority];
@@ -52715,6 +54007,7 @@ class Http2Sessions {
       };
     }
     session.once('close', removeSession);
+    session.once('error', removeSession);
     let entry = [session, options];
     authoritySessions ? authoritySessions.push(entry) : authoritySessions = this.sessions[authority] = [entry];
     return session;
@@ -52735,11 +54028,116 @@ const callbackify = (fn, reducer) => {
 };
 
 const LOOPBACK_HOSTNAMES = new Set(['localhost', '0.0.0.0']);
+const trimTrailingDots = value => {
+  let end = value.length;
+  while (end && value.charCodeAt(end - 1) === 46) {
+    end--;
+  }
+  return end === value.length ? value : value.slice(0, end);
+};
 const isIPv4Loopback = host => {
   const parts = host.split('.');
   if (parts.length !== 4) return false;
   if (parts[0] !== '127') return false;
   return parts.every(p => /^\d+$/.test(p) && Number(p) >= 0 && Number(p) <= 255);
+};
+
+/**
+ * Canonicalize an IPv4 address written in shorthand, octal, or hex form into
+ * dotted-decimal. IPv6 addresses and non-IP strings are returned unchanged so
+ * the existing IPv4-mapped IPv6 unmap path and the isLoopback path can still
+ * see them.
+ *
+ * Shorthand expansion mirrors Node's URL parser: literal parts fill from the
+ * left, the final part fills the remaining octets from the right with
+ * zero-padding on the left.
+ *   127.1     -> 127.0.0.1
+ *   127.0.1   -> 127.0.0.1
+ *   1.2.3     -> 1.2.0.3
+ *
+ * Each octet is parsed with an explicit base: 16 for `0x`/`0X` prefix, 8 for
+ * zero-prefixed multi-digit all-`0-7` parts, 10 otherwise. Zero-prefixed
+ * decimal-looking parts that contain `8` or `9` are rejected to match Node's
+ * URL parser, and the comparison layer falls through to non-bypass if either
+ * side rejects the form (fail-safe).
+ *
+ * Returns the input unchanged on any parse failure, out-of-range octet, or
+ * unusual shape (1-part, 5+ parts) so the comparison layer fails closed.
+ */
+const parseIPv4Octet = text => {
+  if (/^0[xX][0-9a-fA-F]+$/.test(text)) {
+    const n = parseInt(text.slice(2), 16);
+    return Number.isFinite(n) ? n : null;
+  }
+  if (text.length > 1 && /^0[0-7]+$/.test(text)) {
+    const n = parseInt(text, 8);
+    return Number.isFinite(n) ? n : null;
+  }
+  if (text.length > 1 && /^0[0-9]+$/.test(text)) {
+    return null;
+  }
+  if (/^[0-9]+$/.test(text)) {
+    const n = parseInt(text, 10);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+};
+const normalizeIPAddress = host => {
+  if (typeof host !== 'string' || !host || host.indexOf(':') !== -1) {
+    return host;
+  }
+  let h = host;
+  if (h.charAt(0) === '[' && h.charAt(h.length - 1) === ']') {
+    h = h.slice(1, -1);
+  }
+  h = trimTrailingDots(h);
+
+  // Allowed characters for any IPv4 shape: digits, dot, 'x', 'X', hex digits.
+  if (!/^[0-9.xXa-fA-F]+$/.test(h)) return host;
+  const parts = h.split('.');
+
+  // No part may be empty (e.g. "127..0.1" or "127.0.0."). Trailing dots are
+  // already stripped above; this guards against the empty-middle case.
+  if (parts.some(p => p === '')) return host;
+  if (parts.length === 4) {
+    // Full IPv4 form: each part is an octet.
+    const octets = parts.map(parseIPv4Octet);
+    if (octets.some(n => n === null || n < 0 || n > 255)) return host;
+    return octets.join('.');
+  }
+  if (parts.length > 4) {
+    return host;
+  }
+
+  // Shorthand: 1..3 parts. Node's URL parser treats a 1-part input as a 32-bit
+  // integer split into octets, which has surprising semantics (e.g. "127" ->
+  // "0.0.0.127"). Reject 1-part inputs to keep the helper predictable: the
+  // fail-safe returns the input unchanged and the comparison layer falls
+  // through to non-bypass.
+  if (parts.length === 1) return host;
+
+  // 2..3 parts: literal parts fill from the left, tail fills remaining octets
+  // from the right with zero-padding.
+  const literalOctets = parts.slice(0, -1);
+  const tail = parts[parts.length - 1];
+  const tailSlots = 4 - literalOctets.length;
+
+  // Tail is parsed as a full IPv4 number (hex/octal/decimal) and packed
+  // low-byte-right into the remaining octets, matching Node's URL parser.
+  // e.g. 127.65535 (tail 0xFFFF into 3 slots) -> 127.0.255.255;
+  //      127.0x00ff (tail 0xFF into 3 slots) -> 127.0.0.255;
+  //      127.0.65535 (tail 0xFFFF into 2 slots) -> 127.0.255.255.
+  const tailValue = parseIPv4Octet(tail);
+  if (tailValue === null) return host;
+  const maxTail = (1 << 8 * tailSlots) - 1;
+  if (tailValue < 0 || tailValue > maxTail) return host;
+  const tailOctets = new Array(tailSlots).fill(0);
+  for (let i = tailSlots - 1, v = tailValue; i >= 0; i--, v >>= 8) {
+    tailOctets[i] = v & 0xff;
+  }
+  const literal = literalOctets.map(parseIPv4Octet);
+  if (literal.some(n => n === null || n < 0 || n > 255)) return host;
+  return [...literal, ...tailOctets].join('.');
 };
 const isIPv6ZeroGroup = group => /^0{1,4}$/.test(group);
 
@@ -52847,6 +54245,40 @@ const unmapIPv4MappedIPv6 = host => {
   }
   return host;
 };
+const IPV4_OCTET_RE = /^(?:0|[1-9]\d{0,2})$/;
+const ipv4ToBytes = host => {
+  const parts = host.split('.');
+  return parts.length === 4 && parts.every(part => IPV4_OCTET_RE.test(part) && Number(part) <= 255) ? parts.map(Number) : null;
+};
+const IPV6_GROUP_RE = /^[0-9a-f]{1,4}$/i;
+const ipv6ToBytes = host => {
+  const halves = host.split('::');
+  if (halves.length > 2) {
+    return null;
+  }
+  const groups = halves[0] ? halves[0].split(':') : [];
+  if (halves.length === 2) {
+    const rear = halves[1] ? halves[1].split(':') : [];
+    const missing = 8 - groups.length - rear.length;
+    if (missing < 1) {
+      return null;
+    }
+    groups.push(...new Array(missing).fill('0'), ...rear);
+  }
+  if (groups.length !== 8 || groups.some(group => !IPV6_GROUP_RE.test(group))) {
+    return null;
+  }
+  return groups.flatMap(group => {
+    const value = Number.parseInt(group, 16);
+    return [value >> 8 & 0xff, value & 0xff];
+  });
+};
+const ipToBytes = host => {
+  if (typeof host !== 'string' || !host) {
+    return null;
+  }
+  return host.indexOf(':') !== -1 ? ipv6ToBytes(host) : ipv4ToBytes(host);
+};
 const normalizeNoProxyHost = hostname => {
   if (!hostname) {
     return hostname;
@@ -52854,7 +54286,101 @@ const normalizeNoProxyHost = hostname => {
   if (hostname.charAt(0) === '[' && hostname.charAt(hostname.length - 1) === ']') {
     hostname = hostname.slice(1, -1);
   }
-  return unmapIPv4MappedIPv6(hostname.replace(/\.+$/, ''));
+  const trimmed = trimTrailingDots(hostname);
+
+  // IPv4 shorthand/octal/hex → dotted-decimal; helper is a no-op for inputs
+  // containing ':' (IPv6 and IPv4-mapped IPv6) so we fall through to unmap.
+  const ipv4 = normalizeIPAddress(trimmed);
+  if (ipv4 !== trimmed) {
+    return ipv4;
+  }
+  return unmapIPv4MappedIPv6(trimmed);
+};
+const normalizeCidrBase = input => {
+  let base = input;
+  const startsBracket = base.charAt(0) === '[';
+  const endsBracket = base.charAt(base.length - 1) === ']';
+  const hasBracket = base.includes('[') || base.includes(']');
+  if (startsBracket || endsBracket) {
+    if (!startsBracket || !endsBracket) {
+      return null;
+    }
+    base = base.slice(1, -1);
+    if (base.indexOf(':') === -1 || base.includes('[') || base.includes(']')) {
+      return null;
+    }
+  } else if (hasBracket) {
+    return null;
+  }
+  if (!base || base.charAt(base.length - 1) === '.') {
+    return null;
+  }
+  const wasIPv6 = base.indexOf(':') !== -1;
+  if (wasIPv6) {
+    try {
+      base = new URL(`http://[${base}]/`).hostname.slice(1, -1);
+    } catch (_err) {
+      return null;
+    }
+  } else {
+    base = normalizeIPAddress(base);
+    if (!ipv4ToBytes(base)) {
+      return null;
+    }
+  }
+  return {
+    normalized: unmapIPv4MappedIPv6(base),
+    wasIPv6
+  };
+};
+const CIDR_ENTRY_RE = /^(.+)\/(0|[1-9]\d{0,2})$/;
+const parseCidrEntry = entry => {
+  if (entry.indexOf('/') === -1) {
+    return undefined;
+  }
+  const match = CIDR_ENTRY_RE.exec(entry);
+  if (!match) {
+    return null;
+  }
+  let prefix = Number(match[2]);
+  const parsedBase = normalizeCidrBase(match[1]);
+  if (!parsedBase) {
+    return null;
+  }
+  const {
+    normalized,
+    wasIPv6
+  } = parsedBase;
+  if (wasIPv6 && normalized.indexOf(':') === -1) {
+    if (prefix < 96) {
+      return null;
+    }
+    prefix -= 96;
+  }
+  const bytes = ipToBytes(normalized);
+  if (!bytes || prefix > bytes.length * 8) {
+    return null;
+  }
+  return {
+    bytes,
+    prefix
+  };
+};
+const isInSubnet = (addressBytes, networkBytes, prefix) => {
+  const fullBytes = prefix >> 3;
+  for (let i = 0; i < fullBytes; i++) {
+    if (addressBytes[i] !== networkBytes[i]) {
+      return false;
+    }
+  }
+  const remainingBits = prefix & 7;
+  if (remainingBits) {
+    const mask = 0xff << 8 - remainingBits & 0xff;
+    if ((addressBytes[fullBytes] & mask) !== (networkBytes[fullBytes] & mask)) {
+      return false;
+    }
+  }
+  return true;
 };
 function shouldBypassProxy(location) {
   let parsed;
@@ -52872,9 +54398,17 @@ function shouldBypassProxy(location) {
   }
   const port = Number.parseInt(parsed.port, 10) || DEFAULT_PORTS[parsed.protocol.split(':', 1)[0]] || 0;
   const hostname = normalizeNoProxyHost(parsed.hostname.toLowerCase());
+  const hostnameBytes = ipToBytes(hostname);
   return noProxy.split(/[\s,]+/).some(entry => {
     if (!entry) {
       return false;
+    }
+    if (entry === '*') {
+      return true;
+    }
+    const cidr = parseCidrEntry(entry);
+    if (cidr !== undefined) {
+      return cidr !== null && !!hostnameBytes && hostnameBytes.length === cidr.bytes.length && isInSubnet(hostnameBytes, cidr.bytes, cidr.prefix);
     }
     let [entryHost, entryPort] = parseNoProxyEntry(entry);
     entryHost = normalizeNoProxyHost(entryHost);
@@ -52938,7 +54472,7 @@ function speedometer(samplesCount, min) {
  * Throttle decorator
  * @param {Function} fn
  * @param {Number} freq
- * @return {Function}
+ * @return {Array<Function>}
  */
 function throttle(fn, freq) {
   let timestamp = 0;
@@ -52970,19 +54504,20 @@ function throttle(fn, freq) {
     }
   };
   const flush = () => lastArgs && invoke(lastArgs);
-  return [throttled, flush];
+  const flushWith = (...args) => invoke(args);
+  return [throttled, flush, flushWith];
 }
 
 const progressEventReducer = (listener, isDownloadStream, freq = 3) => {
   let bytesNotified = 0;
   const _speedometer = speedometer(50, 250);
   return throttle(e => {
-    if (!e || typeof e.loaded !== 'number') {
+    if (!e || !utils$1.isNumber(e.loaded)) {
       return;
     }
     const rawLoaded = e.loaded;
     const total = e.lengthComputable ? e.total : undefined;
-    const loaded = total != null ? Math.min(rawLoaded, total) : rawLoaded;
+    const loaded = Math.max(0, total != null ? Math.min(rawLoaded, total) : rawLoaded);
     const progressBytes = Math.max(0, loaded - bytesNotified);
     const rate = _speedometer(progressBytes);
     bytesNotified = Math.max(bytesNotified, loaded);
@@ -53008,20 +54543,85 @@ const progressEventDecorator = (total, throttled) => {
     loaded
   }), throttled[1]];
 };
-const asyncDecorator = fn => (...args) => utils$1.asap(() => fn(...args));
+const asyncDecorator = (fn, scheduler = utils$1.asap) => (...args) => scheduler(() => fn(...args));
 
 /**
- * Estimate decoded byte length of a data:// URL *without* allocating large buffers.
- * - For base64: compute exact decoded size using length and padding;
- *               handle %XX at the character-count level (no string allocation).
- * - For non-base64: compute the exact percent-decoded UTF-8 byte length.
- *
- * @param {string} url
- * @returns {number}
+ * Estimate data: URL byte lengths *without* allocating large buffers.
+ * - Fetch percent-decodes a base64 body before decoding it.
+ * - Node's Buffer.from(body, 'base64') sizes its backing allocation from the
+ *   raw body, including ignored characters and content after padding.
+ * - Non-base64 data is percent-decoded and then encoded as UTF-8.
  */
 const isHexDigit = charCode => charCode >= 48 && charCode <= 57 || charCode >= 65 && charCode <= 70 || charCode >= 97 && charCode <= 102;
 const isPercentEncodedByte = (str, i, len) => i + 2 < len && isHexDigit(str.charCodeAt(i + 1)) && isHexDigit(str.charCodeAt(i + 2));
-function estimateDataURLDecodedBytes(url) {
+const hexValue = charCode => charCode <= 57 ? charCode - 48 : (charCode & 0xdf) - 55;
+const isBase64Char = charCode => charCode >= 65 && charCode <= 90 ||
+// A-Z
+charCode >= 97 && charCode <= 122 ||
+// a-z
+charCode >= 48 && charCode <= 57 ||
+// 0-9
+charCode === 43 ||
+// +
+charCode === 47 ||
+// /
+charCode === 45 ||
+// - (base64url)
+charCode === 95; // _ (base64url)
+
+const isBase64Whitespace = charCode => charCode === 9 || charCode === 10 || charCode === 12 || charCode === 13 || charCode === 32;
+const base64Bytes = significant => {
+  const groups = Math.floor(significant / 4);
+  const remainder = significant % 4;
+  return groups * 3 + (remainder === 2 ? 1 : remainder === 3 ? 2 : 0);
+};
+
+// Buffer.byteLength(body, 'base64') uses the raw string length as an allocation
+// upper bound even when Buffer.from later ignores characters or stops at '='.
+const estimateBase64BufferAllocation = body => {
+  const len = body.length;
+  let padding = 0;
+  if (len > 0 && body.charCodeAt(len - 1) === 61 /* '=' */) {
+    padding++;
+    if (len > 1 && body.charCodeAt(len - 2) === 61 /* '=' */) {
+      padding++;
+    }
+  }
+  return Math.floor((len - padding) * 3 / 4);
+};
+const estimatePercentDecodedBase64Bytes = body => {
+  const len = body.length;
+  let significant = 0;
+  let padding = 0;
+  let invalid = false;
+  for (let i = 0; i < len; i++) {
+    let code = body.charCodeAt(i);
+    if (code === 37 /* '%' */ && isPercentEncodedByte(body, i, len)) {
+      code = hexValue(body.charCodeAt(i + 1)) * 16 + hexValue(body.charCodeAt(i + 2));
+      i += 2;
+    }
+    if (isBase64Whitespace(code)) {
+      continue;
+    }
+    if (code === 61 /* '=' */) {
+      padding++;
+      continue;
+    }
+    if (!isBase64Char(code) || padding > 0) {
+      invalid = true;
+      continue;
+    }
+    significant++;
+  }
+
+  // Fetch rejects malformed forgiving-base64 input. Returning the raw-size
+  // allocation bound keeps that invalid input from becoming a pre-check bypass.
+  if (invalid || padding > 2 || padding > 0 && (significant + padding) % 4 !== 0 || significant % 4 === 1) {
+    return estimateBase64BufferAllocation(body);
+  }
+  return base64Bytes(significant);
+};
+const estimateDataURLBytes = (url, estimateBase64) => {
   if (!url || typeof url !== 'string') return 0;
   if (!url.startsWith('data:')) return 0;
   const comma = url.indexOf(',');
@@ -53030,47 +54630,7 @@ function estimateDataURLDecodedBytes(url) {
   const body = url.slice(comma + 1);
   const isBase64 = /;base64/i.test(meta);
   if (isBase64) {
-    let effectiveLen = body.length;
-    const len = body.length; // cache length
-
-    for (let i = 0; i < len; i++) {
-      if (body.charCodeAt(i) === 37 /* '%' */ && i + 2 < len) {
-        const a = body.charCodeAt(i + 1);
-        const b = body.charCodeAt(i + 2);
-        const isHex = isHexDigit(a) && isHexDigit(b);
-        if (isHex) {
-          effectiveLen -= 2;
-          i += 2;
-        }
-      }
-    }
-    let pad = 0;
-    let idx = len - 1;
-    const tailIsPct3D = j => j >= 2 && body.charCodeAt(j - 2) === 37 &&
-    // '%'
-    body.charCodeAt(j - 1) === 51 && (
-    // '3'
-    body.charCodeAt(j) === 68 || body.charCodeAt(j) === 100); // 'D' or 'd'
-
-    if (idx >= 0) {
-      if (body.charCodeAt(idx) === 61 /* '=' */) {
-        pad++;
-        idx--;
-      } else if (tailIsPct3D(idx)) {
-        pad++;
-        idx -= 3;
-      }
-    }
-    if (pad === 1 && idx >= 0) {
-      if (body.charCodeAt(idx) === 61 /* '=' */) {
-        pad++;
-      } else if (tailIsPct3D(idx)) {
-        pad++;
-      }
-    }
-    const groups = Math.floor(effectiveLen / 4);
-    const bytes = groups * 3 - (pad || 0);
-    return bytes > 0 ? bytes : 0;
+    return estimateBase64(body);
   }
 
   // Compute UTF-8 byte length directly from UTF-16 code units without allocating
@@ -53100,6 +54660,28 @@ function estimateDataURLDecodedBytes(url) {
     }
   }
   return bytes;
+};
+
+/**
+ * Estimate the percent-decoded payload size used by Fetch data: URLs.
+ *
+ * @param {string} url
+ * @returns {number}
+ */
+function estimateDataURLDecodedBytes(url) {
+  // Fetch removes URL fragments before processing a data: URL.
+  const fragmentIndex = typeof url === 'string' ? url.indexOf('#') : -1;
+  return estimateDataURLBytes(fragmentIndex === -1 ? url : url.slice(0, fragmentIndex), estimatePercentDecodedBase64Bytes);
+}
+
+/**
+ * Estimate the Buffer backing allocation used by Node's raw base64 decoder.
+ *
+ * @param {string} url
+ * @returns {number}
+ */
+function estimateDataURLBufferAllocation(url) {
+  return estimateDataURLBytes(url, estimateBase64BufferAllocation);
 }
 
 const zlibOptions = {
@@ -53118,28 +54700,26 @@ const isBrotliSupported = utils$1.isFunction(zlib.createBrotliDecompress);
 const isZstdSupported = utils$1.isFunction(zlib.createZstdDecompress);
 const ACCEPT_ENCODING = 'gzip, compress, deflate' + (isBrotliSupported ? ', br' : '');
 const ACCEPT_ENCODING_WITH_ZSTD = ACCEPT_ENCODING + (isZstdSupported ? ', zstd' : '');
+const scheduleProgress = typeof process !== 'undefined' && process.nextTick ? process.nextTick.bind(process) : utils$1.asap;
 const {
   http: httpFollow,
   https: httpsFollow
 } = followRedirects;
 const isHttps = /https:?/;
-const FORM_DATA_CONTENT_HEADERS$1 = ['content-type', 'content-length'];
-function setFormDataHeaders$1(headers, formHeaders, policy) {
-  if (policy !== 'content-only') {
-    headers.set(formHeaders);
-    return;
-  }
-  Object.entries(formHeaders).forEach(([key, val]) => {
-    if (FORM_DATA_CONTENT_HEADERS$1.includes(key.toLowerCase())) {
-      headers.set(key, val);
-    }
-  });
-}
 
 // Symbols used to bind a single 'error' listener to a pooled socket and track
 // the request currently owning that socket across keep-alive reuse (issue #10780).
 const kAxiosSocketListener = Symbol('axios.http.socketListener');
 const kAxiosCurrentReq = Symbol('axios.http.currentReq');
+
+// A shared listener avoids retaining an adapter context for the lifetime of a
+// pooled socket. EventEmitter invokes listeners with `this` set to the emitter.
+function handleSocketError(err) {
+  const current = this[kAxiosCurrentReq];
+  if (current && !current.destroyed) {
+    current.destroy(err);
+  }
+}
 
 // Tags HttpsProxyAgent instances installed by setProxy() so the redirect path
 // can strip them without clobbering a user-supplied agent that happens to be
@@ -53152,6 +54732,36 @@ const kAxiosInstalledTunnel = Symbol('axios.http.installedTunnel');
 // so unbounded growth is not a concern in practice.
 const tunnelingAgentCache = new Map();
 const tunnelingAgentCacheUser = new WeakMap();
+// Minimum minor versions where Node's HTTP Agent supports native proxyEnv
+// handling. Checking the selected agent below also covers startup modes such
+// as NODE_OPTIONS=--use-env-proxy and --no-use-env-proxy precedence.
+const NODE_NATIVE_ENV_PROXY_SUPPORT = {
+  22: 21,
+  24: 5
+};
+function isNodeNativeEnvProxySupported(nodeVersion = process.versions && process.versions.node) {
+  if (!nodeVersion) {
+    return false;
+  }
+  const [major, minor] = nodeVersion.split('.').map(part => Number(part));
+  if (!Number.isInteger(major) || !Number.isInteger(minor)) {
+    return false;
+  }
+  if (major > 24) {
+    return true;
+  }
+  return NODE_NATIVE_ENV_PROXY_SUPPORT[major] != null && minor >= NODE_NATIVE_ENV_PROXY_SUPPORT[major];
+}
+function isNodeEnvProxyEnabled(agent, nodeVersion = process.versions && process.versions.node) {
+  if (!isNodeNativeEnvProxySupported(nodeVersion)) {
+    return false;
+  }
+  const agentOptions = agent && agent.options;
+  return Boolean(agentOptions && utils$1.hasOwnProp(agentOptions, 'proxyEnv') && agentOptions.proxyEnv != null);
+}
+function getProxyEnvAgent(options, configHttpAgent, configHttpsAgent) {
+  return isHttps.test(options.protocol) ? configHttpsAgent || https.globalAgent : configHttpAgent || http.globalAgent;
+}
 function getTunnelingAgent(agentOptions, userHttpsAgent) {
   const key = agentOptions.protocol + '//' + agentOptions.hostname + ':' + (agentOptions.port || '') + '#' + (agentOptions.auth || '');
   const cache = userHttpsAgent ? tunnelingAgentCacheUser.get(userHttpsAgent) || tunnelingAgentCacheUser.set(userHttpsAgent, new Map()).get(userHttpsAgent) : tunnelingAgentCache;
@@ -53256,12 +54866,14 @@ function isSameOriginRedirect(redirectOptions, requestDetails) {
  * @param {http.ClientRequestArgs} options
  * @param {AxiosProxyConfig} configProxy configuration from Axios options object
  * @param {string} location
+ * @param {boolean} [allowEnvProxy=true] whether environment proxy configuration can be used
  *
- * @returns {http.ClientRequestArgs}
+ * @returns {boolean} whether a proxy applies to the selected transport
  */
-function setProxy(options, configProxy, location, isRedirect, configHttpsAgent) {
+function setProxy(options, configProxy, location, isRedirect, configHttpsAgent, configHttpAgent, allowEnvProxy = true) {
   let proxy = configProxy;
-  if (!proxy && proxy !== false) {
+  const proxyEnvAgent = getProxyEnvAgent(options, configHttpAgent, configHttpsAgent);
+  if (!proxy && proxy !== false && allowEnvProxy && !isNodeEnvProxyEnabled(proxyEnvAgent)) {
     const proxyUrl = getProxyForUrl(location);
     if (proxyUrl) {
       if (!shouldBypassProxy(location)) {
@@ -53396,8 +55008,9 @@ function setProxy(options, configProxy, location, isRedirect, configHttpsAgent) 
   options.beforeRedirects.proxy = function beforeRedirect(redirectOptions) {
     // Configure proxy for redirected request, passing the original config proxy to apply
     // the exact same logic as if the redirected request was performed by axios directly.
-    setProxy(redirectOptions, configProxy, redirectOptions.href, true, configHttpsAgent);
+    setProxy(redirectOptions, configProxy, redirectOptions.href, true, configHttpsAgent, configHttpAgent, allowEnvProxy);
   };
+  return Boolean(proxy || configProxy !== false && allowEnvProxy && isNodeEnvProxyEnabled(proxyEnvAgent));
 }
 const isHttpAdapterSupported = typeof process !== 'undefined' && utils$1.kindOf(process) === 'process';
 
@@ -53428,7 +55041,7 @@ const resolveFamily = ({
   family
 }) => {
   if (!utils$1.isString(address)) {
-    throw TypeError('address must be a string');
+    throw new AxiosError('address must be a string', AxiosError.ERR_BAD_OPTION_VALUE);
   }
   return {
     address,
@@ -53439,6 +55052,32 @@ const buildAddressEntry = (address, family) => resolveFamily(utils$1.isObject(ad
   address,
   family
 });
+const normalizedLookupCache = new WeakMap();
+const normalizeLookup = lookup => {
+  let normalized = normalizedLookupCache.get(lookup);
+  if (normalized) {
+    return normalized;
+  }
+  const callbackLookup = callbackify(lookup, value => utils$1.isArray(value) ? value : [value]);
+
+  // Support opt.all, which is required by current Node.js releases.
+  normalized = (hostname, opt, cb) => {
+    callbackLookup(hostname, opt, (err, arg0, arg1) => {
+      if (err) {
+        return cb(err);
+      }
+      let addresses;
+      try {
+        addresses = utils$1.isArray(arg0) ? arg0.map(addr => buildAddressEntry(addr)) : [buildAddressEntry(arg0, arg1)];
+      } catch (error) {
+        return cb(error);
+      }
+      opt.all ? cb(err, addresses) : cb(err, addresses[0].address, addresses[0].family);
+    });
+  };
+  normalizedLookupCache.set(lookup, normalized);
+  return normalized;
+};
 const http2Transport = {
   request(options, cb) {
     const authority = options.protocol + '//' + options.hostname + ':' + (options.port || (options.protocol === 'https:' ? 443 : 80));
@@ -53491,11 +55130,14 @@ var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
     let family = own('family');
     let httpVersion = own('httpVersion');
     if (httpVersion === undefined) httpVersion = 1;
+    const rawHttpVersion = httpVersion;
     let http2Options = own('http2Options');
-    const responseType = own('responseType');
-    const responseEncoding = own('responseEncoding');
     const httpAgent = own('httpAgent');
     const httpsAgent = own('httpsAgent');
+    const configProxy = own('proxy');
+    const responseType = own('responseType');
+    const responseEncoding = own('responseEncoding');
+    const socketPath = own('socketPath');
     const method = own('method').toUpperCase();
     const maxRedirects = own('maxRedirects');
     const maxBodyLength = own('maxBodyLength');
@@ -53505,26 +55147,20 @@ var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
     let rejected = false;
     let req;
     let connectPhaseTimer;
-    httpVersion = +httpVersion;
+    try {
+      httpVersion = +httpVersion;
+    } catch (err) {
+      throw new AxiosError('Invalid protocol version: value is not a number', AxiosError.ERR_BAD_OPTION_VALUE, config);
+    }
     if (Number.isNaN(httpVersion)) {
-      throw TypeError(`Invalid protocol version: '${config.httpVersion}' is not a number`);
+      throw new AxiosError(`Invalid protocol version: '${rawHttpVersion}' is not a number`, AxiosError.ERR_BAD_OPTION_VALUE, config);
     }
     if (httpVersion !== 1 && httpVersion !== 2) {
-      throw TypeError(`Unsupported protocol version '${httpVersion}'`);
+      throw new AxiosError(`Unsupported protocol version '${httpVersion}'`, AxiosError.ERR_BAD_OPTION_VALUE, config);
     }
     const isHttp2 = httpVersion === 2;
     if (lookup) {
-      const _lookup = callbackify(lookup, value => utils$1.isArray(value) ? value : [value]);
-      // hotfix to support opt.all option which is required for node 20.x
-      lookup = (hostname, opt, cb) => {
-        _lookup(hostname, opt, (err, arg0, arg1) => {
-          if (err) {
-            return cb(err);
-          }
-          const addresses = utils$1.isArray(arg0) ? arg0.map(addr => buildAddressEntry(addr)) : [buildAddressEntry(arg0, arg1)];
-          opt.all ? cb(err, addresses) : cb(err, addresses[0].address, addresses[0].family);
-        });
-      };
+      lookup = normalizeLookup(lookup);
     }
     const abortEmitter = new events.EventEmitter();
     function abort(reason) {
@@ -53589,14 +55225,19 @@ var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
 
     // Parse url
     const fullPath = buildFullPath(own('baseURL'), own('url'), own('allowAbsoluteUrls'), config);
-    const parsed = new URL(fullPath, platform.hasBrowserEnv ? platform.origin : undefined);
+    // Unix-socket requests (own socketPath) commonly pass a path-only url
+    // like '/foo'; supply a synthetic base so new URL() can still parse it.
+    // Use the own-property value (not config.socketPath) so a polluted
+    // prototype cannot influence URL base selection.
+    const urlBase = socketPath ? 'http://localhost' : platform.hasBrowserEnv ? platform.origin : undefined;
+    const parsed = new URL(fullPath, urlBase);
     const protocol = parsed.protocol || supportedProtocols[0];
     if (protocol === 'data:') {
       // Apply the same semantics as HTTP: only enforce if a finite, non-negative cap is set.
       if (maxContentLength > -1) {
         // Use the exact string passed to fromDataURI (the configured url); fall back to fullPath if needed.
         const dataUrl = String(own('url') || fullPath || '');
-        const estimated = estimateDataURLDecodedBytes(dataUrl);
+        const estimated = estimateDataURLBufferAllocation(dataUrl);
         if (estimated > maxContentLength) {
           return reject(new AxiosError('maxContentLength size of ' + maxContentLength + ' exceeded', AxiosError.ERR_BAD_RESPONSE, config));
         }
@@ -53662,7 +55303,7 @@ var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
       });
       // support for https://www.npmjs.com/package/form-data api
     } else if (utils$1.isFormData(data) && utils$1.isFunction(data.getHeaders) && data.getHeaders !== Object.prototype.getHeaders) {
-      setFormDataHeaders$1(headers, data.getHeaders(), own('formDataHeaderPolicy'));
+      setFormDataHeaders(headers, data.getHeaders(), own('formDataHeaderPolicy'));
       if (!headers.hasContentLength()) {
         try {
           const knownLength = await util.promisify(data.getLength).call(data);
@@ -53705,7 +55346,7 @@ var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
       data = stream.pipeline([data, new AxiosTransformStream({
         maxRate: utils$1.toFiniteNumber(maxUploadRate)
       })], utils$1.noop);
-      onUploadProgress && data.on('progress', flushOnFinish(data, progressEventDecorator(contentLength, progressEventReducer(asyncDecorator(onUploadProgress), false, 3))));
+      onUploadProgress && data.on('progress', flushOnFinish(data, progressEventDecorator(contentLength, progressEventReducer(asyncDecorator(onUploadProgress, scheduleProgress), false, 3))));
     }
 
     // HTTP basic authentication
@@ -53726,13 +55367,17 @@ var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
     try {
       path$1 = buildURL(parsed.pathname + parsed.search, own('params'), own('paramsSerializer')).replace(/^\?/, '');
     } catch (err) {
-      const customErr = new Error(err.message);
-      customErr.config = config;
-      customErr.url = own('url');
-      customErr.exists = true;
-      return reject(customErr);
+      return reject(AxiosError.from(err, AxiosError.ERR_BAD_REQUEST, config, null, null, {
+        url: own('url'),
+        exists: true
+      }));
     }
     headers.set('Accept-Encoding', utils$1.hasOwnProp(transitional, 'advertiseZstdAcceptEncoding') && transitional.advertiseZstdAcceptEncoding === true ? ACCEPT_ENCODING_WITH_ZSTD : ACCEPT_ENCODING, false);
+    if (isHttp2 && lookup) {
+      http2Options = Object.assign(Object.create(null), http2Options, {
+        lookup
+      });
+    }
 
     // Null-prototype to block prototype pollution gadgets on properties read
     // directly by Node's http.request (e.g. insecureHTTPParser, lookup).
@@ -53749,12 +55394,13 @@ var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
       family,
       beforeRedirect: dispatchBeforeRedirect,
       beforeRedirects: Object.create(null),
-      http2Options
+      http2Options,
+      createConnection: undefined
     });
 
     // cacheable-lookup integration hotfix
     !utils$1.isUndefined(lookup) && (options.lookup = lookup);
-    const socketPath = own('socketPath');
+    let proxyApplied = false;
     if (socketPath) {
       if (typeof socketPath !== 'string') {
         return reject(new AxiosError('socketPath must be a string', AxiosError.ERR_BAD_OPTION_VALUE, config));
@@ -53772,7 +55418,11 @@ var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
     } else {
       options.hostname = parsed.hostname.startsWith('[') ? parsed.hostname.slice(1, -1) : parsed.hostname;
       options.port = parsed.port;
-      setProxy(options, own('proxy'), protocol + '//' + parsed.hostname + (parsed.port ? ':' + parsed.port : '') + options.path, false, httpsAgent);
+      proxyApplied = setProxy(options, configProxy, protocol + '//' + parsed.hostname + (parsed.port ? ':' + parsed.port : '') + options.path, false, httpsAgent, httpAgent,
+      // The HTTP/2 transport connects independently of HTTP/1 agents, so it
+      // cannot apply either axios-resolved or agent-local environment proxies.
+      // Explicit proxy config is still processed and rejected below.
+      !isHttp2);
     }
     let transport;
     let isNativeTransport = false;
@@ -53788,6 +55438,9 @@ var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
       options.agent = isHttpsRequest ? httpsAgent : httpAgent;
     }
     if (isHttp2) {
+      if (proxyApplied) {
+        return reject(new AxiosError('HTTP/2 requests with a proxy are not supported', AxiosError.ERR_NOT_SUPPORT, config));
+      }
       transport = http2Transport;
     } else {
       const configTransport = own('transport');
@@ -53847,10 +55500,13 @@ var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
         transport = isHttpsRequest ? httpsFollow : httpFollow;
       }
     }
+
+    // Set an explicit maxBodyLength option for transports that inspect it.
+    // When maxBodyLength is -1 (default/unlimited), use Infinity so
+    // follow-redirects does not fall back to its own 10MB default.
     if (maxBodyLength > -1) {
       options.maxBodyLength = maxBodyLength;
     } else {
-      // follow-redirects does not skip comparison, so it should always succeed for axios -1 unlimited
       options.maxBodyLength = Infinity;
     }
 
@@ -53869,7 +55525,7 @@ var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
         const transformStream = new AxiosTransformStream({
           maxRate: utils$1.toFiniteNumber(maxDownloadRate)
         });
-        onDownloadProgress && transformStream.on('progress', flushOnFinish(transformStream, progressEventDecorator(responseLength, progressEventReducer(asyncDecorator(onDownloadProgress), true, 3))));
+        onDownloadProgress && transformStream.on('progress', flushOnFinish(transformStream, progressEventDecorator(responseLength, progressEventReducer(asyncDecorator(onDownloadProgress, scheduleProgress), true, 3))));
         streams.push(transformStream);
       }
 
@@ -54026,20 +55682,16 @@ var httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
     const boundSockets = new Set();
     req.on('socket', function handleRequestSocket(socket) {
       // default interval of sending ack packet is 1 minute
-      socket.setKeepAlive(true, 1000 * 60);
+      // proxy agents (e.g. agent-base) may return a generic Duplex stream
+      // that doesn't have setKeepAlive, so guard before calling
+      if (typeof socket.setKeepAlive === 'function') {
+        socket.setKeepAlive(true, 1000 * 60);
+      }
 
-      // Install a single 'error' listener per socket (not per request) to avoid
-      // accumulating listeners on pooled keep-alive sockets that get reassigned
-      // to new requests before the previous request's 'close' fires (issue #10780).
-      // The listener is bound to the socket's currently-active request via a
-      // symbol, which is swapped as the socket is reassigned.
+      // Install one shared 'error' listener per socket. The symbol follows the
+      // currently-active request as pooled sockets are reassigned (issue #10780).
       if (!socket[kAxiosSocketListener]) {
-        socket.on('error', function handleSocketError(err) {
-          const current = socket[kAxiosCurrentReq];
-          if (current && !current.destroyed) {
-            current.destroy(err);
-          }
-        });
+        socket.on('error', handleSocketError);
         socket[kAxiosSocketListener] = true;
       }
       socket[kAxiosCurrentReq] = req;
@@ -54171,7 +55823,11 @@ var cookies = platform.hasStandardBrowserEnv ?
       const cookie = cookies[i].replace(/^\s+/, '');
       const eq = cookie.indexOf('=');
       if (eq !== -1 && cookie.slice(0, eq) === name) {
-        return decodeURIComponent(cookie.slice(eq + 1));
+        try {
+          return decodeURIComponent(cookie.slice(eq + 1));
+        } catch (e) {
+          return cookie.slice(eq + 1);
+        }
       }
     }
     return null;
@@ -54192,6 +55848,12 @@ var cookies = platform.hasStandardBrowserEnv ?
 const headersToObject = thing => thing instanceof AxiosHeaders ? {
   ...thing
 } : thing;
+const ownEnumerableKeys = thing => {
+  if (Object.getOwnPropertySymbols && Object.getOwnPropertyDescriptor) {
+    return Object.keys(thing).concat(Object.getOwnPropertySymbols(thing).filter(symbol => Object.getOwnPropertyDescriptor(thing, symbol).enumerable));
+  }
+  return Object.keys(thing);
+};
 
 /**
  * Config-specific merge-function which creates a new config-object
@@ -54204,6 +55866,7 @@ const headersToObject = thing => thing instanceof AxiosHeaders ? {
  */
 function mergeConfig(config1, config2) {
   // eslint-disable-next-line no-param-reassign
+  config1 = config1 || {};
   config2 = config2 || {};
 
   // Use a null-prototype object so that downstream reads such as `config.auth`
@@ -54290,7 +55953,7 @@ function mergeConfig(config1, config2) {
     transformResponse: defaultToConfig2,
     paramsSerializer: defaultToConfig2,
     timeout: defaultToConfig2,
-    timeoutMessage: defaultToConfig2,
+    timeoutErrorMessage: defaultToConfig2,
     withCredentials: defaultToConfig2,
     withXSRFToken: defaultToConfig2,
     adapter: defaultToConfig2,
@@ -54313,7 +55976,7 @@ function mergeConfig(config1, config2) {
     validateStatus: mergeDirectKeys,
     headers: (a, b, prop) => mergeDeepProperties(headersToObject(a), headersToObject(b), prop, true)
   };
-  utils$1.forEach(Object.keys({
+  utils$1.forEach(ownEnumerableKeys({
     ...config1,
     ...config2
   }), function computeConfigValue(prop) {
@@ -54332,19 +55995,6 @@ function mergeConfig(config1, config2) {
     }
   }
   return config;
-}
-
-const FORM_DATA_CONTENT_HEADERS = ['content-type', 'content-length'];
-function setFormDataHeaders(headers, formHeaders, policy) {
-  if (policy !== 'content-only') {
-    headers.set(formHeaders);
-    return;
-  }
-  Object.entries(formHeaders).forEach(([key, val]) => {
-    if (FORM_DATA_CONTENT_HEADERS.includes(key.toLowerCase())) {
-      headers.set(key, val);
-    }
-  });
 }
 
 /**
@@ -54378,14 +56028,19 @@ function resolveConfig(config) {
   if (auth) {
     const username = utils$1.getSafeProp(auth, 'username') || '';
     const password = utils$1.getSafeProp(auth, 'password') || '';
-    headers.set('Authorization', 'Basic ' + btoa(username + ':' + (password ? encodeUTF8$1(password) : '')));
+    try {
+      headers.set('Authorization', 'Basic ' + btoa(username + ':' + (password ? encodeUTF8$1(password) : '')));
+    } catch (e) {
+      throw AxiosError.from(e, AxiosError.ERR_BAD_OPTION_VALUE, config);
+    }
   }
   if (utils$1.isFormData(data)) {
+    const getHeaders = utils$1.getSafeProp(data, 'getHeaders');
     if (platform.hasStandardBrowserEnv || platform.hasStandardBrowserWebWorkerEnv || utils$1.isReactNative(data)) {
       headers.setContentType(undefined); // browser/web worker/RN handles it
-    } else if (utils$1.isFunction(data.getHeaders)) {
+    } else if (utils$1.isFunction(getHeaders)) {
       // Node.js FormData (like form-data package)
-      setFormDataHeaders(headers, data.getHeaders(), own('formDataHeaderPolicy'));
+      setFormDataHeaders(headers, getHeaders.call(data), own('formDataHeaderPolicy'));
     }
   }
 
@@ -54425,7 +56080,7 @@ var xhrAdapter = isXHRAdapterSupported && function (config) {
     } = _config;
     let onCanceled;
     let uploadThrottled, downloadThrottled;
-    let flushUpload, flushDownload;
+    let flushUpload, flushDownload, flushDownloadWithEvent;
     function done() {
       flushUpload && flushUpload(); // flush events
       flushDownload && flushDownload(); // flush events
@@ -54438,10 +56093,50 @@ var xhrAdapter = isXHRAdapterSupported && function (config) {
 
     // Set the request timeout in MS
     request.timeout = _config.timeout;
-    function onloadend() {
+    function onloadend(event) {
       if (!request) {
         return;
       }
+
+      // Status 0 means no response was received, which onerror and onabort normally
+      // reject before this runs. Firefox 152 fires only readystatechange and loadend for
+      // navigation-canceled requests (https://bugzilla.mozilla.org/show_bug.cgi?id=1505389),
+      // leaving settle() to resolve them as an empty success. ECONNABORTED is the error
+      // onabort raised on Firefox 151. Reads over file:, which some environments report as
+      // status 0 on success, are excluded by the request URL's scheme after browser-style
+      // preprocessing, by the page origin's scheme for relative URLs (which inherit it), or
+      // by responseURL where implemented.
+      if (request.status === 0 && (parseProtocol(normalizeURLForProtocolCheck(_config.url)) || parseProtocol(platform.origin)) !== 'file' && !(request.responseURL && request.responseURL.startsWith('file:'))) {
+        reject(new AxiosError('Request aborted', AxiosError.ECONNABORTED, config, request));
+        done();
+
+        // Clean up request
+        request = null;
+        return;
+      }
+
+      // When loadend is still dispatching, flushing with it gives progress
+      // listeners a final delivery whose event has a live target. The legacy
+      // ready-state fallback has no event, so replay its pending progress.
+      // A throwing listener must not block settlement; rethrow asynchronously,
+      // matching how listener errors surface on the throttle timer path.
+      try {
+        if (event) {
+          flushDownloadWithEvent && flushDownloadWithEvent(event);
+        } else {
+          flushDownload && flushDownload();
+        }
+      } catch (err) {
+        setTimeout(() => {
+          throw err;
+        });
+      }
+
+      // A final progress callback can cancel the request synchronously.
+      if (!request) {
+        return;
+      }
+
       // Prepare the response
       const responseHeaders = AxiosHeaders.from('getAllResponseHeaders' in request && request.getAllResponseHeaders());
       const responseData = !responseType || responseType === 'text' || responseType === 'json' ? request.responseText : request.response;
@@ -54549,7 +56244,7 @@ var xhrAdapter = isXHRAdapterSupported && function (config) {
 
     // Handle progress if needed
     if (onDownloadProgress) {
-      [downloadThrottled, flushDownload] = progressEventReducer(onDownloadProgress, true);
+      [downloadThrottled, flushDownload, flushDownloadWithEvent] = progressEventReducer(onDownloadProgress, true);
       request.addEventListener('progress', downloadThrottled);
     }
 
@@ -54579,6 +56274,7 @@ var xhrAdapter = isXHRAdapterSupported && function (config) {
     const protocol = parseProtocol(_config.url);
     if (protocol && !platform.protocols.includes(protocol)) {
       reject(new AxiosError('Unsupported protocol ' + protocol + ':', AxiosError.ERR_BAD_REQUEST, config));
+      done();
       return;
     }
 
@@ -54617,7 +56313,18 @@ const composeSignals = (signals, timeout) => {
     });
     signals = null;
   };
-  signals.forEach(signal => signal.addEventListener('abort', onabort));
+  signals.forEach(signal => {
+    if (aborted) {
+      return;
+    }
+    if (signal.aborted) {
+      onabort.call(signal);
+      return;
+    }
+    signal.addEventListener('abort', onabort, {
+      once: true
+    });
+  });
   const {
     signal
   } = controller;
@@ -54708,6 +56415,17 @@ const trackStream = (stream, chunkSize, onProgress, onFinish) => {
 };
 
 const DEFAULT_CHUNK_SIZE = 64 * 1024;
+const DEFAULT_REQUEST_OPTIONS = {
+  cache: 'default',
+  redirect: 'follow',
+  referrer: 'about:client',
+  referrerPolicy: '',
+  mode: 'cors',
+  integrity: '',
+  keepalive: false,
+  priority: 'auto',
+  window: null
+};
 const {
   isFunction
 } = utils$1;
@@ -54850,7 +56568,8 @@ const factory = env => {
       withCredentials = 'same-origin',
       fetchOptions,
       maxContentLength,
-      maxBodyLength
+      maxBodyLength,
+      maxRedirects
     } = resolveConfig(config);
     const hasMaxContentLength = utils$1.isNumber(maxContentLength) && maxContentLength > -1;
     const hasMaxBodyLength = utils$1.isNumber(maxBodyLength) && maxBodyLength > -1;
@@ -54981,17 +56700,46 @@ const factory = env => {
 
       // Set User-Agent header if not already set (fetch defaults to 'node' in Node.js)
       headers.set('User-Agent', 'axios/' + VERSION, false);
-      const resolvedOptions = {
-        ...fetchOptions,
+      const safeFetchOptions = fetchOptions == null ? fetchOptions : Object.assign(Object.create(null), fetchOptions);
+      if (safeFetchOptions) {
+        // These options are owned by Axios and are already reflected in the
+        // resolved Request passed to fetch.
+        delete safeFetchOptions.body;
+        delete safeFetchOptions.headers;
+        delete safeFetchOptions.method;
+        delete safeFetchOptions.signal;
+        delete safeFetchOptions.duplex;
+        delete safeFetchOptions.credentials;
+      }
+      const resolvedOptions = Object.assign(Object.create(null), safeFetchOptions, {
         signal: composedSignal,
         method: method.toUpperCase(),
         headers: toByteStringHeaderObject(headers.normalize()),
         body: data,
         duplex: 'half',
         credentials: isCredentialsSupported ? withCredentials : undefined
-      };
+      });
+      if (isRequestSupported) {
+        utils$1.forEach(DEFAULT_REQUEST_OPTIONS, (value, key) => {
+          if (resolvedOptions[key] === undefined) {
+            resolvedOptions[key] = value;
+          }
+        });
+        if (resolvedOptions.signal === undefined) {
+          resolvedOptions.signal = null;
+        }
+        if (resolvedOptions.body === undefined) {
+          resolvedOptions.body = null;
+        }
+      }
+      if (maxRedirects === 0) {
+        resolvedOptions.redirect = 'manual';
+        if (safeFetchOptions) {
+          safeFetchOptions.redirect = 'manual';
+        }
+      }
       request = isRequestSupported && new Request(url, resolvedOptions);
-      let response = await (isRequestSupported ? _fetch(request, fetchOptions) : _fetch(url, resolvedOptions));
+      let response = await (isRequestSupported ? _fetch(request, safeFetchOptions) : _fetch(url, resolvedOptions));
       const responseHeaders = AxiosHeaders.from(response.headers);
 
       // Cheap pre-check: if the server honestly declares a content-length that
@@ -55067,7 +56815,17 @@ const factory = env => {
         const canceledError = composedSignal.reason;
         canceledError.config = config;
         request && (canceledError.request = request);
-        err !== canceledError && (canceledError.cause = err);
+        if (err !== canceledError) {
+          // Non-enumerable to match native Error `cause` semantics so loggers
+          // don't recurse into circular fetch internals (see #7205).
+          Object.defineProperty(canceledError, 'cause', {
+            __proto__: null,
+            value: err,
+            writable: true,
+            enumerable: false,
+            configurable: true
+          });
+        }
         throw canceledError;
       }
 
@@ -55088,9 +56846,17 @@ const factory = env => {
         throw err;
       }
       if (err && err.name === 'TypeError' && /Load failed|fetch/i.test(err.message)) {
-        throw Object.assign(new AxiosError('Network Error', AxiosError.ERR_NETWORK, config, request, err && err.response), {
-          cause: err.cause || err
+        const networkError = new AxiosError('Network Error', AxiosError.ERR_NETWORK, config, request, err && err.response);
+        // Non-enumerable to match native Error `cause` semantics so loggers
+        // don't recurse into circular fetch internals (see #7205).
+        Object.defineProperty(networkError, 'cause', {
+          __proto__: null,
+          value: err.cause || err,
+          writable: true,
+          enumerable: false,
+          configurable: true
         });
+        throw networkError;
       }
       throw AxiosError.from(err, err && err.code, config, request, err && err.response);
     }
@@ -55209,7 +56975,7 @@ function getAdapter(adapters, config) {
   if (!adapter) {
     const reasons = Object.entries(rejectedReasons).map(([id, state]) => `adapter ${id} ` + (state === false ? 'is not supported by the environment' : 'is not available in the build'));
     let s = length ? reasons.length > 1 ? 'since :\n' + reasons.map(renderReason).join('\n') : ' ' + renderReason(reasons[0]) : 'as no adapter specified';
-    throw new AxiosError(`There is no suitable adapter to dispatch the request ` + s, 'ERR_NOT_SUPPORT');
+    throw new AxiosError(`There is no suitable adapter to dispatch the request ` + s, AxiosError.ERR_NOT_SUPPORT);
   }
   return adapter;
 }
@@ -55253,9 +57019,13 @@ function throwIfCancellationRequested(config) {
  *
  * @returns {Promise} The Promise to be fulfilled
  */
-function dispatchRequest(config) {
+function dispatchRequest(_config) {
+  // Interceptors may replace the merged config with an ordinary object. Flatten
+  // it at the dispatch boundary so shared prototype members cannot become
+  // request behavior, while preserving intentional template/class members.
+  const config = utils$1.toSafeFlatObject(_config);
   throwIfCancellationRequested(config);
-  config.headers = AxiosHeaders.from(config.headers);
+  config.headers = AxiosHeaders.from(utils$1.getSafeProp(config, 'headers'));
 
   // Transform request data
   config.data = transformData.call(config, config.transformRequest);
@@ -55352,7 +57122,7 @@ validators$1.spelling = function spelling(correctSpelling) {
  */
 
 function assertOptions(options, schema, allowUnknown) {
-  if (typeof options !== 'object') {
+  if (typeof options !== 'object' || options === null) {
     throw new AxiosError('options must be an object', AxiosError.ERR_BAD_OPTION_VALUE);
   }
   const keys = Object.keys(options);
@@ -55411,18 +57181,17 @@ class Axios {
       return await this._request(configOrUrl, config);
     } catch (err) {
       if (err instanceof Error) {
-        let dummy = {};
-        Error.captureStackTrace ? Error.captureStackTrace(dummy) : dummy = new Error();
-
-        // slice off the Error: ... line
-        const stack = (() => {
-          if (!dummy.stack) {
-            return '';
-          }
-          const firstNewlineIndex = dummy.stack.indexOf('\n');
-          return firstNewlineIndex === -1 ? '' : dummy.stack.slice(firstNewlineIndex + 1);
-        })();
         try {
+          let dummy = {};
+          Error.captureStackTrace ? Error.captureStackTrace(dummy) : dummy = new Error();
+          const dummyStack = dummy.stack;
+          let stack = '';
+
+          // slice off the Error: ... line
+          if (typeof dummyStack === 'string') {
+            const firstNewlineIndex = dummyStack.indexOf('\n');
+            stack = firstNewlineIndex === -1 ? '' : dummyStack.slice(firstNewlineIndex + 1);
+          }
           if (!err.stack) {
             err.stack = stack;
             // match without the 2 top stack lines
@@ -55435,7 +57204,7 @@ class Axios {
             }
           }
         } catch (e) {
-          // ignore the case where "stack" is an un-writable property
+          // Ignore failures from custom stack hooks or un-writable stack properties.
         }
       }
       throw err;
@@ -55491,11 +57260,11 @@ class Axios {
     }, true);
 
     // Set config.method
-    config.method = (config.method || this.defaults.method || 'get').toLowerCase();
+    config.method = (utils$1.getSafeProp(config, 'method') || utils$1.getSafeProp(this.defaults, 'method') || 'get').toLowerCase();
 
     // Flatten headers
     let contextHeaders = headers && utils$1.merge(headers.common, headers[config.method]);
-    headers && utils$1.forEach(['delete', 'get', 'head', 'post', 'put', 'patch', 'query', 'common'], method => {
+    headers && utils$1.forEach(methodList.concat('common'), method => {
       delete headers[method];
     });
     config.headers = AxiosHeaders.concat(contextHeaders, headers);
@@ -55540,16 +57309,29 @@ class Axios {
       const onFulfilled = requestInterceptorChain[i++];
       const onRejected = requestInterceptorChain[i++];
       try {
-        newConfig = onFulfilled(newConfig);
+        newConfig = onFulfilled ? onFulfilled(newConfig) : newConfig;
       } catch (error) {
-        onRejected.call(this, error);
+        if (!onRejected) {
+          promise = Promise.reject(error);
+          break;
+        }
+        try {
+          const rejectedResult = onRejected.call(this, error);
+          if (utils$1.isThenable(rejectedResult)) {
+            promise = Promise.resolve(rejectedResult).then(() => dispatchRequest.call(this, newConfig));
+          }
+        } catch (rejectedError) {
+          promise = Promise.reject(rejectedError);
+        }
         break;
       }
     }
-    try {
-      promise = dispatchRequest.call(this, newConfig);
-    } catch (error) {
-      return Promise.reject(error);
+    if (!promise) {
+      try {
+        promise = dispatchRequest.call(this, newConfig);
+      } catch (error) {
+        promise = Promise.reject(error);
+      }
     }
     i = 0;
     len = responseInterceptorChain.length;
@@ -55788,14 +57570,22 @@ const HttpStatusCode = {
   Gone: 410,
   LengthRequired: 411,
   PreconditionFailed: 412,
+  /**
+   * @deprecated Use `ContentTooLarge` instead.
+   */
   PayloadTooLarge: 413,
+  ContentTooLarge: 413,
   UriTooLong: 414,
   UnsupportedMediaType: 415,
   RangeNotSatisfiable: 416,
   ExpectationFailed: 417,
   ImATeapot: 418,
   MisdirectedRequest: 421,
+  /**
+   * @deprecated Use `UnprocessableContent` instead.
+   */
   UnprocessableEntity: 422,
+  UnprocessableContent: 422,
   Locked: 423,
   FailedDependency: 424,
   TooEarly: 425,
@@ -55815,6 +57605,7 @@ const HttpStatusCode = {
   LoopDetected: 508,
   NotExtended: 510,
   NetworkAuthenticationRequired: 511,
+  WebServerReturnsAnUnknownError: 520,
   WebServerIsDown: 521,
   ConnectionTimedOut: 522,
   OriginIsUnreachable: 523,
@@ -55823,7 +57614,9 @@ const HttpStatusCode = {
   InvalidSslCertificate: 526
 };
 Object.entries(HttpStatusCode).forEach(([key, value]) => {
-  HttpStatusCode[value] = key;
+  if (HttpStatusCode[value] === undefined) {
+    HttpStatusCode[value] = key;
+  }
 });
 
 /**
@@ -55891,7 +57684,6 @@ axios.HttpStatusCode = HttpStatusCode;
 axios.default = axios;
 
 module.exports = axios;
-//# sourceMappingURL=axios.cjs.map
 
 
 /***/ }),
