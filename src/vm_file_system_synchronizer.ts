@@ -28,9 +28,7 @@ export interface VmFileSystemSynchronizer {
   synchronizeBack(): Promise<void>
 }
 
-export class DefaultVmFileSystemSynchronizer
-  implements VmFileSystemSynchronizer
-{
+export class DefaultVmFileSystemSynchronizer implements VmFileSystemSynchronizer {
   private readonly executor: Executor
   private readonly input: Input
   private readonly cpaHost = vm.Vm.cpaHost
