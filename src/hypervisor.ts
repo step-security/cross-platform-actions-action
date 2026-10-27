@@ -111,3 +111,16 @@ export class Simh implements Hypervisor {
     return getOrDefaultOrThrow(implementation, 'simh')
   }
 }
+
+// RISC-V boots via QEMU's built-in OpenSBI plus U-Boot, which is loaded as the
+// kernel (see the FreeBSD QemuVmRiscv64). U-Boot then EFI-boots the disk image
+// and forwards the device tree to the FreeBSD loader.
+export class QemuRiscv extends Qemu {
+  override get firmwareFile(): string {
+    return `${this.firmwareDirectory}/u-boot.bin`
+  }
+
+  override get efi(): Hypervisor {
+    return this
+  }
+}
